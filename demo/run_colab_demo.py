@@ -85,6 +85,24 @@ def shutil_which(tool: str):
     return shutil.which(tool)
 
 
+def dataset_stage() -> None:
+    """Fetch the export only from ROBOFLOW_EXPORT_URL; never from a literal."""
+    zip_path = REPO / "data/raw/zerowaste_yolov8.zip"
+    if not zip_path.exists():
+        if not EXPORT_URL:
+            raise RuntimeError(
+                "ROBOFLOW_EXPORT_URL is not set. Generate a fresh export URL "
+                "with the Roboflow MCP versions_export tool and set the "
+                "environment variable before running. The URL is a secret; "
+                "it must never be written into this repo."
+            )
+        zip_path.parent.mkdir(parents=True, exist_ok=True)
+        print("downloading ZeroWaste export from the configured URL", flush=True)
+        urllib.request.urlretrieve(EXPORT_URL, zip_path)
+        print(f"downloaded {zip_path.stat().st_size / 1e6:.1f} MB")
+    sh(f"python {shlex_quote(PHASE_B / 'prepare_zerowaste.py')}")
+
+
 def main() -> int:
     os.chdir(REPO)
     sys.path.insert(0, str(PHASE_B))
@@ -155,23 +173,7 @@ def main() -> int:
     step("inference ladder batches 1/4/8", ladder)
 
     # ---- Tasks 2 & 4: real dataset + real belt video ----------------------
-    def dataset():
-        zip_path = REPO / "data/raw/zerowaste_yolov8.zip"
-        if not zip_path.exists():
-            if not EXPORT_URL:
-                raise RuntimeError(
-                    "ROBOFLOW_EXPORT_URL is not set. Generate a fresh export URL "
-                    "with the Roboflow MCP versions_export tool and set the "
-                    "environment variable before running. The URL is a secret; "
-                    "it must never be written into this repo."
-                )
-            zip_path.parent.mkdir(parents=True, exist_ok=True)
-            print("downloading ZeroWaste export from the configured URL", flush=True)
-            urllib.request.urlretrieve(EXPORT_URL, zip_path)
-            print(f"downloaded {zip_path.stat().st_size / 1e6:.1f} MB")
-        sh(f"python {shlex_quote(PHASE_B / 'prepare_zerowaste.py')}")
-
-    step("real dataset + belt video", dataset)
+    step("real dataset + belt video", dataset_stage)
 
     # ---- Task 9 input: per-frame timings on real frames --------------------
     def timings():
