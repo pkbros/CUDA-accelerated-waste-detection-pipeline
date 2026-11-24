@@ -5,9 +5,10 @@ a pretrained YOLOv8n on real conveyor frames, and profiling that shows what got 
 
 ![Pipeline overview](docs/overview.png)
 
-**60-90 s screen demo:** [`demo/demo.mp4`](demo/demo.mp4) - rendered by the T4 run from real
-ZeroWaste val frames. The results bundle downloads `results/*.csv`; the MP4 itself must be
-downloaded separately from Colab's Files sidebar (`demo/demo.mp4`, `demo/demo_short.mp4`).
+**80 s screen demo:** [`demo/demo.mp4`](demo/demo.mp4) — split-screen of real ZeroWaste val
+frames with measured per-stage overlays, plus [`demo_short.mp4`](demo/demo_short.mp4) (15 s).
+Both were rendered **offline from the CSVs the T4 wrote**; every number on screen is traceable
+to `results/demo_frame_timings.csv`.
 
 > **Status: prototype.** Every number below comes from a CSV written by a run on a Colab
 > **Tesla T4 (sm_75, CUDA 13.0)**. The first synthetic run is archived in
