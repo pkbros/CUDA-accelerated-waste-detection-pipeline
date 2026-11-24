@@ -1,7 +1,7 @@
 # CUDA-Accelerated Conveyor Waste Detection Pipeline
 
 A CUDA performance study of a conveyor-belt waste detection pipeline: hand-written GPU kernels,
-a fine-tuned YOLOv8n, and profiling that shows what got faster and why.
+a pretrained YOLOv8n on real conveyor frames, and profiling that shows what got faster and why.
 
 ![Pipeline overview](docs/overview.png)
 
@@ -173,9 +173,10 @@ comes from [`results/summary.md`](results/summary.md), not from expectation:
 - **The old benchmark CSVs are synthetic** (archived in `results/synthetic_run1/`). The new
   dataset and demo video use real ZeroWaste conveyor frames; new runs must be generated on a
   T4 before those CSVs are replaced.
-- **The detector is at most lightly fine-tuned.** A small, scene-disjoint ZeroWaste subset
-  (1,415 train / 300 val) exists locally, but no mAP has been measured yet — none is claimed.
-  Until a real val run exists, the detector is pretrained COCO.
+- **The detector is deliberately pretrained COCO YOLOv8n, not fine-tuned.** This is a CUDA
+  performance study: retraining would change the workload being measured. The real ZeroWaste
+  subset (1,415 train / 300 val) exists only to supply real frames; any detections are COCO
+  classes, and no mAP is claimed.
 - **Licence:** the Roboflow API reports CC BY 4.0 for the hosted ZeroWaste copy, resolving the
   conflicting CC BY-NC prose on the web page. This is prototype interview use, not
   redistribution; see `docs/data_sources.md`.
