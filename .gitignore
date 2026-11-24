@@ -9,8 +9,11 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 
-# Downloaded data / weights (large, and licensed separately)
-data/
+# Downloaded data / weights (large, and licensed separately).
+# Keep the two instruction files, ignore every actual image/label/archive.
+data/*
+!data/README.md
+!data/waste.yaml
 models/*.pt
 models/*.onnx
 models/*.engine

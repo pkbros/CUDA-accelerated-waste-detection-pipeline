@@ -68,6 +68,41 @@ ZEROWASTE_VERSION = 1
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
+# Six waste classes for the demo subset. This mapping is DERIVED FROM TACO's own
+# official detector/taco_config/map_10.csv (fetched 2026-11-24 from
+# github.com/pedropro/TACO): Can, Bottle, Bottle cap, Cup, Plastic bag +
+# wrapper, Cigarette. We keep the first five distinct target groups and fold
+# the small Cigarette group into Other, so the mapping stays close to the
+# dataset authors' own redundancy-aware configuration.
+WASTE_CLASSES = (
+    "can",
+    "bottle",
+    "bottle_cap",
+    "cup",
+    "plastic_bag_wrapper",
+    "other",
+)
+
+TACO_TO_WASTE: dict[str, int] = {
+    # Can
+    "Aerosol": 0, "Drink can": 0, "Food Can": 0,
+    # Bottle
+    "Clear plastic bottle": 1, "Glass bottle": 1, "Other plastic bottle": 1,
+    # Bottle cap
+    "Plastic bottle cap": 2, "Metal bottle cap": 2,
+    # Cup
+    "Paper cup": 3, "Disposable plastic cup": 3, "Foam cup": 3,
+    "Glass cup": 3, "Other plastic cup": 3,
+    # Plastic bag + wrapper
+    "Garbage bag": 4, "Single-use carrier bag": 4, "Polypropylene bag": 4,
+    "Produce bag": 4, "Cereal bag": 4, "Bread bag": 4, "Plastic film": 4,
+    "Crisp packet": 4, "Other plastic wrapper": 4, "Retort pouch": 4,
+    "Six pack rings": 4,
+}
+# Everything else in TACO's category list -> class 5 ("other"), applied at
+# convert time. This mirrors the authors' map_4/10 practice of merging the long
+# tail rather than keeping dozens of classes with almost no examples.
+
 
 @dataclass(frozen=True)
 class DatasetSpec:
@@ -366,6 +401,7 @@ def coco_to_yolo(
     lbl_dir.mkdir(parents=True, exist_ok=True)
 
     written = skipped = annotations = 0
+    scene_of: dict[str, str] = {}
     for image in coco.get("images", []):
         anns = by_image.get(int(image["id"]), [])
         mapped = [a for a in anns if yolo_class(a["category_id"]) is not None]
@@ -373,7 +409,13 @@ def coco_to_yolo(
             skipped += 1  # no annotations (or only unmapped classes) -> skip
             continue
 
-        file_name = Path(str(image["file_name"])).name  # COCO paths can have subdirs
+        raw_name = str(image["file_name"])
+        file_name = Path(raw_name).name  # COCO paths can have subdirs
+        # Remember the source scene/batch. The subset splitter uses this to keep
+        # near-duplicate frames from the same video batch out of both splits.
+        scene_of[Path(file_name).stem] = (
+            str(Path(raw_name).parent) if Path(raw_name).parent != Path(".") else "root"
+        )
         src = images_dir / file_name
         if not src.exists():
             print(f"  warning: missing image {src}, skipping")
@@ -413,12 +455,118 @@ def coco_to_yolo(
         written += 1
         annotations += len(lines)
 
+    (out_dir / "scenes.json").write_text(
+        json.dumps(scene_of, indent=2, sort_keys=True), encoding="utf-8"
+    )
     yaml_path = _write_data_yaml(out_dir, names)
     print(
         f"Converted {written} images / {annotations} boxes into {out_dir} "
         f"({skipped} images skipped)."
     )
     print(f"Wrote {yaml_path}; next step: python phase_b/data_prep.py split --out {out_dir}")
+    return yaml_path
+
+
+def prepare_subset(
+    json_path: str | Path,
+    images_dir: str | Path,
+    out_dir: str | Path,
+    train_n: int = 1500,
+    val_n: int = 300,
+    seed: int = 0,
+) -> Path:
+    """Convert TACO and keep a small, SCENE-DISJOINT YOLO subset.
+
+    Scene-disjoint matters: TACO images come in batches of near-duplicate
+    frames. A random per-image split would put neighbours of the same frame in
+    train and val, inflating mAP. Here whole source batches go to one split.
+
+    Returns the path of `data/waste.yaml` (written beside `out_dir`).
+    """
+    json_path, images_dir, out_dir = Path(json_path), Path(images_dir), Path(out_dir)
+    coco = json.loads(json_path.read_text(encoding="utf-8"))
+    other = len(WASTE_CLASSES) - 1
+    class_map = {
+        str(cat["name"]): TACO_TO_WASTE.get(str(cat["name"]), other)
+        for cat in coco.get("categories", [])
+    }
+    coco_to_yolo(json_path, images_dir, out_dir, class_map)
+
+    scenes_path = out_dir / "scenes.json"
+    if not scenes_path.exists():
+        raise RuntimeError("coco_to_yolo did not write scenes.json; cannot split by scene")
+    scenes = json.loads(scenes_path.read_text(encoding="utf-8"))
+    by_scene: dict[str, list[str]] = defaultdict(list)
+    for stem, scene in scenes.items():
+        by_scene[str(scene)].append(stem)
+
+    rng = random.Random(seed)
+    keys = sorted(by_scene)
+    rng.shuffle(keys)
+    val_stems: list[str] = []
+    train_stems: list[str] = []
+    for key in keys:
+        group = sorted(by_scene[key])
+        if len(val_stems) < val_n:
+            val_stems.extend(group)
+        elif len(train_stems) < train_n:
+            train_stems.extend(group)
+        else:
+            break
+    val_stems = val_stems[:val_n]
+    train_stems = train_stems[:train_n]
+    chosen = set(val_stems) | set(train_stems)
+    if len(val_stems) < val_n or len(train_stems) < train_n:
+        print(
+            f"WARNING: only {len(train_stems)} train / {len(val_stems)} val images "
+            f"available from whole scenes (requested {train_n}/{val_n}). "
+            "Reporting the real counts, not the requested ones."
+        )
+
+    img_dir, lbl_dir = out_dir / "images", out_dir / "labels"
+    for stem in img_dir.glob("*"):
+        if stem.is_file() and stem.stem not in chosen:
+            stem.unlink()
+    for stem in lbl_dir.glob("*.txt"):
+        if stem.stem not in chosen:
+            stem.unlink()
+
+    for split, stems in (("train", train_stems), ("val", val_stems)):
+        (img_dir / split).mkdir(parents=True, exist_ok=True)
+        (lbl_dir / split).mkdir(parents=True, exist_ok=True)
+        for s in stems:
+            for src_dir in (img_dir, lbl_dir):
+                for ext in IMAGE_SUFFIXES if src_dir == img_dir else (".txt",):
+                    p = src_dir / f"{s}{ext}"
+                    if p.exists():
+                        shutil.move(str(p), str(src_dir / split / p.name))
+                        break
+
+    names = "\n".join(f"  {i}: '{n}'" for i, n in enumerate(WASTE_CLASSES))
+    yaml_path = out_dir.parent / "waste.yaml"
+    yaml_path.write_text(
+        "path: .\n"
+        f"train: {out_dir.name}/images/train\n"
+        f"val: {out_dir.name}/images/val\n"
+        f"nc: {len(WASTE_CLASSES)}\n"
+        f"names:\n{names}\n",
+        encoding="utf-8",
+    )
+    (out_dir / "split.json").write_text(
+        json.dumps({
+            "strategy": "whole-source-scene (TACO batch)",
+            "seed": seed,
+            "n_train": len(train_stems),
+            "n_val": len(val_stems),
+            "requested_train": train_n,
+            "requested_val": val_n,
+        }, indent=2), encoding="utf-8",
+    )
+    print(
+        f"Prepared {len(train_stems)} train / {len(val_stems)} val images "
+        f"from {len(keys)} source scenes, scene-disjoint."
+    )
+    print(f"Wrote {yaml_path}")
     return yaml_path
 
 
@@ -576,6 +724,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="JSON object: COCO category id (or name) -> YOLO class index, e.g. '{\"1\": 0}'",
     )
 
+    pr = sub.add_parser(
+        "prepare", help="TACO COCO -> 6-class scene-disjoint YOLO subset + data/waste.yaml"
+    )
+    pr.add_argument("--json", dest="json_path", required=True)
+    pr.add_argument("--images", dest="images_dir", required=True)
+    pr.add_argument("--out", dest="out_dir", default="data/waste")
+    pr.add_argument("--train", dest="train_n", type=int, default=1500)
+    pr.add_argument("--val", dest="val_n", type=int, default=300)
+    pr.add_argument("--seed", type=int, default=0)
+
     sp = sub.add_parser("split", help="make deterministic train/val folders")
     sp.add_argument("--out", dest="out_dir", required=True)
     sp.add_argument("--val-fraction", type=float, default=0.2)
@@ -599,6 +757,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         download(args.name, args.dest, dry_run=args.dry_run)
     elif args.command == "convert":
         coco_to_yolo(args.json_path, args.images_dir, args.out_dir, _load_class_map(args.class_map))
+    elif args.command == "prepare":
+        prepare_subset(args.json_path, args.images_dir, args.out_dir,
+                       args.train_n, args.val_n, args.seed)
     elif args.command == "split":
         split_dataset(args.out_dir, args.val_fraction, args.seed)
     elif args.command == "stats":

@@ -10,7 +10,7 @@ before publishing.
 
 | Dataset | What it contains | Label type | Size (source-reported) | Licence | Verified? | URL | Download method | Detection fine-tune? |
 |---|---|---|---|---|---|---|---|---|
-| ZeroWaste (Roboflow `zerowaste-contamination`) | Waste/contamination on conveyor-style imagery; closest to the motivating setting | Roboflow export — request `yolov8` to get images + per-image box `.txt` files | **Unknown**: the Roboflow page returned HTTP 403 from this environment, so no count was confirmed | **Unverified — check before publishing.** The *original academic* dataset is CC BY-NC 4.0 (NonCommercial) per the official repo README; that does not automatically cover this hosted copy | **NO** for the hosted copy. Academic original: **YES**, CC BY-NC 4.0 | [Roboflow Universe](https://universe.roboflow.com/zerowaste-data/zerowaste-contamination); academic original: [dbash/zerowaste](https://github.com/dbash/zerowaste) | `ROBOFLOW_API_KEY` must be set; `phase_b/data_prep.py download --name zerowaste` uses the `roboflow` pip package, otherwise it names the missing variable and skips | Yes, in principle — boxes come from the Roboflow export; blocked here by the missing key **and** unverified licence |
+| ZeroWaste (Roboflow `zerowaste-contamination`) | Waste/contamination on conveyor-style imagery; closest to the motivating setting | Roboflow export — request `yolov8` to get images + per-image box `.txt` files | **Unknown**: the Roboflow page returned HTTP 403 from this environment, so no count was confirmed | **UNVERIFIED — do not use.** Page re-checked 2026-11-24: header says `CC BY 4.0` but the About block says `CC BY-NC 4.0`. Direct contradiction; academic original is CC BY-NC 4.0 | **NO** — conflicting statements on the same page | [Roboflow Universe](https://universe.roboflow.com/zerowaste-data/zerowaste-contamination); academic original: [dbash/zerowaste](https://github.com/dbash/zerowaste) | `ROBOFLOW_API_KEY` must be set; `phase_b/data_prep.py download --name zerowaste` uses the `roboflow` pip package, otherwise it names the missing variable and skips | Yes, in principle — boxes come from the Roboflow export; blocked here by the missing key **and** unverified licence |
 | TACO (Trash Annotations in Context) | Litter in the wild: woods, roads, beaches — **not** conveyor footage | COCO JSON: segmentation polygons plus bounding boxes; one annotation file | **2.7 GB** for `TACO.zip`, reported by [Zenodo record 3587843](https://zenodo.org/records/3587843) (HTTPS HEAD returned 2,719,810,615 bytes) | **CC BY 4.0** for annotations, and the default for images whose per-image licence entry is missing; individual images may carry other public licences | **YES** for that string and scope — see the verification log below | [Official site (terms)](http://tacodataset.org/), [GitHub repo](https://github.com/pedropro/TACO), [Zenodo DOI 10.5281/zenodo.3587843](https://zenodo.org/records/3587843) | `phase_b/data_prep.py download --name taco` streams the Zenodo archive over HTTPS with a progress line; no API key | **Yes** — converted with `coco_to_yolo()`; this is the demonstrated fallback |
 | TrashNet | 2,527 objects photographed on a white posterboard, six classes; a classification benchmark | **Class folders only — no bounding boxes** | **2,527 images** (reported by the [repo README](https://github.com/garythung/trashnet)); `dataset-resized.zip` is **42,834,870 bytes** (reported by the GitHub API) | **Unverified — check before publishing.** The repo's MIT badge covers the *code*, not the images; the README only requests a citation | **NO** | [garythung/trashnet](https://github.com/garythung/trashnet) | `phase_b/data_prep.py download --name trashnet` streams the repo's `dataset-resized.zip` from GitHub raw | **No** — classification-only; it cannot fine-tune a detector. Listed so the limitation is explicit |
 
@@ -57,3 +57,40 @@ All checks were performed on 2026-11-24 against these URLs:
 No image or annotation file was downloaded while writing this document. Sizes
 above are attributed to the named source; anything not confirmed is marked
 unknown rather than estimated.
+
+## Re-check 2026-11-24 (Task 2)
+
+The pages were fetched again today. What changed:
+
+- **ZeroWaste Roboflow now loads** (the earlier HTTP 403 is gone). It reports
+  **9,563 images**, 3 dataset versions, 4 classes — `metal`, `cardboard`,
+  `rigid_plastic`, `soft_plastic` — and a page-reported mAP@50 of 64.3%. It is
+  still **not used**: the header says `License: CC BY 4.0` while the About block
+  says "distributed under the Creative Commons Attribution-NonCommercial 4.0
+  International License". The academic original is CC BY-NC 4.0
+  ([dbash/zerowaste](https://github.com/dbash/zerowaste)). Two conflicting
+  licence strings on one page cannot be resolved by us, and the export also
+  needs `ROBOFLOW_API_KEY`. Prateek must ask the dataset owner which licence is
+  correct before this copy can be used. Recorded as a branch failure in
+  `results/failures.md`.
+- **TACO remains the choice.** [Zenodo 3587843](https://zenodo.org/records/3587843)
+  again lists `TACO.zip` at 2.7 GB with licence "Creative Commons Attribution
+  4.0 International". Verified again today.
+
+### Class mapping actually used
+
+Derived from TACO's own official mapping file
+[`detector/taco_config/map_10.csv`](https://raw.githubusercontent.com/pedropro/TACO/master/detector/taco_config/map_10.csv),
+fetched 2026-11-24. That file merges the long tail exactly as our map does.
+We keep its first five target groups and fold its small `Cigarette` group into
+`other`, giving 6 classes:
+
+`can` (Aerosol, Drink can, Food Can) · `bottle` (Clear plastic / Glass / Other
+plastic bottle) · `bottle_cap` (Plastic / Metal bottle cap) · `cup` (Paper /
+Disposable plastic / Foam / Glass / Other plastic cup) · `plastic_bag_wrapper`
+(Garbage bag, carrier bags, film, crisp packets, wrappers, six-pack rings) ·
+`other` (every remaining TACO category).
+
+The full name→index table is `TACO_TO_WASTE` in `phase_b/data_prep.py`.
+`prepare` writes the real per-class counts into `results/dataset.csv` when it
+runs — none are claimed here because the subset has not been built yet.
