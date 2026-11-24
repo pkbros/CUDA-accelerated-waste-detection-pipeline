@@ -134,3 +134,24 @@ ever published with these images, re-check the licence with Roboflow.
 
 TACO is no longer the selected dataset. Its verification notes above remain as
 the documented fallback.
+
+
+## Clip investigation 2026-11-24 (review finding)
+
+The first `belt_input.mp4` had near-black stretches. I compared brightness frame by frame
+against the source images in the export:
+
+- Source images: 450 of the first 900 selected frames have mean brightness < 10.
+- Encoded clip: the same 450 frames are dark, with brightness matching the source within
+  ~1 unit. **This is a source-image problem, not a `cv2.VideoWriter` scaling bug.**
+- Fix: `phase_b/prepare_zerowaste.py` now drops frames whose mean brightness is below 10
+  and records the count in `data/waste/video_source.json`.
+- Rebuilt clip: **450 frames kept, 450 dark frames dropped, 22.5 s at 20 fps**, minimum
+  frame brightness 96.9, zero frames below 10.
+
+**What the clip actually is:** stitched **still frames** from the ZeroWaste v3 `valid`
+split, ordered by original frame number (the export's frame numbers are about 10 apart).
+It is **not** a consecutive video stream. Call it that everywhere. Because every exported
+image is 640x640, the clip does not exercise letterboxing; the Task 1 preprocess benchmark
+separately uses 1920x1080 and 640x480 inputs, and the numbers name their source resolution
+in the CSV `extra` field.

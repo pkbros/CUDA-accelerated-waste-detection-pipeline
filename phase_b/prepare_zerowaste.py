@@ -146,28 +146,38 @@ def main() -> int:
     plot_dir.mkdir(parents=True, exist_ok=True)
     canvas.save(plot_dir / "dataset_samples.png")
 
-    # Real belt video from ALL val images in original frame order (30 s at 30 fps).
+    # Real belt clip from val stills in original frame order.
+    # About half the source images in this export are almost black (mean < 10);
+    # this is a property of the source files, not of cv2.VideoWriter. Drop them
+    # so the clip does not look broken, and record the exact count.
     demo_dir = REPO_ROOT / "demo"
     demo_dir.mkdir(parents=True, exist_ok=True)
     writer = cv2.VideoWriter(str(demo_dir / "belt_input.mp4"),
-                             cv2.VideoWriter_fourcc(*"mp4v"), 30, (640, 640))
-    made = 0
+                             cv2.VideoWriter_fourcc(*"mp4v"), 20, (640, 640))
+    made = dropped = 0
     for n in sorted(va, key=frame_no)[:900]:
         f = cv2.imdecode(np.frombuffer(z.read(n), np.uint8), cv2.IMREAD_COLOR)
         if f is None:
+            dropped += 1
+            continue
+        if float(f.mean()) < 10.0:  # verified against the source images
+            dropped += 1
             continue
         writer.write(cv2.resize(f, (640, 640)))
         made += 1
     writer.release()
     (OUT / "video_source.json").write_text(json.dumps({
-        "frames": made, "fps": 30, "seconds": round(made / 30, 2),
-        "order": "original frame number; all val images",
+        "frames": made, "dropped_dark": dropped, "fps": 20,
+        "seconds": round(made / 20, 2),
+        "order": "original frame number; dark source frames removed",
+        "type": "stitched still frames from the val split, not consecutive video",
         "split": "valid (never trained on)", "file": "demo/belt_input.mp4",
     }, indent=2), encoding="utf-8")
 
     print(f"classes: {classes}")
     print(f"subset: {len(tr_pick)} train / {len(val_pick)} val; boxes: {per_class}")
-    print(f"video: {made} frames ({made / 30:.1f}s) from the valid split")
+    print(f"video: {made} frames, {dropped} dark frames dropped, "
+          f"{made / 20:.1f}s at 20 fps from the valid split")
     print(f"wrote {REPO_ROOT / 'data/waste.yaml'}, {plot_dir / 'dataset_samples.png'}")
     return 0
 
