@@ -264,6 +264,10 @@ int main(int argc, char** argv) {
     cpu_timer.start();
     cpu_vector_add(hA.data(), hB.data(), hCpu.data(), N);
     cpu_timer.stop();
+    // Record the sample. Without this push_back the vector stays empty, and
+    // stats_of() returns n=0 with a mean of 0 -- a CSV row that claims a
+    // measurement which never happened.
+    cpu_samples.push_back(cpu_timer.ms());
     cpu_sink += hCpu[N / 2];  // deliberately after stop(): not part of timing
   }
   const Stats cpu_stats = stats_of(cpu_samples);

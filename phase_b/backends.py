@@ -257,26 +257,24 @@ class _ORTBackend(Backend):
         # One intra-op thread avoids CPU-thread contention while the GPU runs;
         # on a small batch ORT can otherwise lose time to host scheduling.
         opts.intra_op_num_threads = 1
-        # CRITICAL FOR HONEST TIMING: by default ORT's CUDA EP runs on its own
-        # stream, so the torch.cuda.Event pair in common.time_call() (recorded
-        # on torch's current stream) would NOT bracket ORT's kernels and would
-        # under-report latency. Point the EP at torch's current stream. Older
-        # ORT builds may reject the "stream" option, hence the fallback.
-        stream_ptr = torch.cuda.current_stream().cuda_stream
-        try:
-            self.sess = ort.InferenceSession(
-                path,
-                sess_options=opts,
-                providers=[
-                    ("CUDAExecutionProvider", {"device_id": 0, "stream": stream_ptr})
-                ],
+        # Do NOT pass a "stream" provider option. ORT 1.32 rejects it as an
+        # unknown option and -- worse -- does not raise: it logs an EP Error and
+        # silently builds a CPU session. That then breaks IOBinding, which binds
+        # a CUDA input into a CPU session. The try/except around InferenceSession
+        # cannot catch that because the call itself "succeeds".
+        self.sess = ort.InferenceSession(
+            path, sess_options=opts, providers=["CUDAExecutionProvider"]
+        )
+        active = self.sess.get_providers()
+        if "CUDAExecutionProvider" not in active:
+            raise RuntimeError(
+                "ONNX Runtime silently fell back to CPU providers; refusing to "
+                f"emit an ort_cuda row. Active providers: {active}"
             )
-            self._stream_aligned = True
-        except Exception:  # noqa: BLE001 - fall back to default stream
-            self.sess = ort.InferenceSession(
-                path, sess_options=opts, providers=["CUDAExecutionProvider"]
-            )
-            self._stream_aligned = False
+        # ORT runs on its own stream. copy_outputs_to_cpu() blocks until that
+        # stream's work is finished, so the CUDA event pair still brackets the
+        # real work; say so explicitly rather than claiming stream alignment.
+        self._stream_aligned = False
         self.input_name = self.sess.get_inputs()[0].name
         self.imgsz = imgsz
         self.batch = batch
@@ -286,9 +284,9 @@ class _ORTBackend(Backend):
             "D2H=included (IOBinding CUDA input + copy_outputs_to_cpu, "
             "then H2D for NMS); "
             + (
-                "stream=torch current (events valid)"
+                "stream=torch current"
                 if self._stream_aligned
-                else "stream=ORT default (events may under-report)"
+                else "stream=ORT default; copy_outputs_to_cpu syncs before stop event"
             )
         )
         self._np = np
