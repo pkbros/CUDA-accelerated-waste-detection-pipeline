@@ -729,22 +729,34 @@ def agreement(data: PPTData) -> AgreementResult | None:
         return None
 
     if any("agrees" in row for row in rows):
+        # Empty frames have no boxes to compare: an IoU of 0 there is a
+        # definition artefact, not a disagreement, and counting them made the
+        # score look like an exact 50.0% / 0.500 bug. Score only frames where
+        # the detector actually produced boxes, and say so in the label.
+        with_boxes = [
+            row for row in rows
+            if int(str(row.get("baseline_count") or "0").strip() or 0) > 0
+            or int(str(row.get("opt_count") or "0").strip() or 0) > 0
+        ]
+        if not with_boxes:
+            warn("pipeline_agreement.csv: no frames with boxes; agreement NOT RUN")
+            return None
         flags = [
             str(row.get("agrees") or "").strip().lower() in {"true", "1", "yes"}
-            for row in rows
+            for row in with_boxes
         ]
         n_agree = int(sum(flags))
         ious: list[float] = []
-        for row in rows:
+        for row in with_boxes:
             try:
                 ious.append(float(str(row.get("mean_iou") or "").strip()))
             except ValueError:
                 continue
         return AgreementResult(
-            score=float(n_agree / len(rows)),
-            name="frames agree",
+            score=float(n_agree / len(with_boxes)),
+            name="frames with boxes agree",
             source="pipeline_agreement.csv",
-            n_frames=len(rows),
+            n_frames=len(with_boxes),
             n_agree=n_agree,
             mean_iou=float(sum(ious) / len(ious)) if ious else None,
         )

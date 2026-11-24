@@ -58,7 +58,11 @@ def main(argv=None) -> int:
                 used.add(best_i)
                 pairs.append(best_v)
         diff = len(base) - len(opt)
-        same = diff == 0 and len(pairs) == len(base) and len(base) > 0
+        both_empty = not base and not opt
+        # Two empty detections agree: an IoU of 0 on an empty frame is a
+        # definition artefact, not a disagreement. Counting those 60 frames as
+        # failures made the score read as an exact 50.0% / 0.500 bug.
+        same = both_empty or (diff == 0 and len(pairs) == len(base))
         out.append({
             "frame": row["frame"],
             "baseline_count": len(base),
@@ -66,6 +70,7 @@ def main(argv=None) -> int:
             "count_diff": diff,
             "matched": len(pairs),
             "mean_iou": f"{sum(pairs) / len(pairs):.6f}" if pairs else "0.000000",
+            "with_boxes": str(not both_empty).lower(),
             "agrees": str(same).lower(),
         })
 

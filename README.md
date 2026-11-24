@@ -49,6 +49,29 @@ preprocess, backend and transport changed. Mean detections were **1.125 per fram
 skipping detections. ncu reported ~95% DRAM throughput and ~6.5% SM throughput for
 `vector_add_float4`, confirming it is memory-bound.
 
+### How to read these numbers (reviewer corrections)
+
+The active `results/*.csv` are the fine-tuned run; a few headline figures need qualification:
+
+- **FP16 is batch-dependent, not a blanket win.** In `infer.csv` FP16 is *slower* at batch 1
+  (13.711 ms vs FP32 10.932 ms) but ~2× faster at batch 4 (10.285 vs 19.504 ms) and batch 8
+  (16.658 vs 42.406 ms). Quote the batch.
+- **Postprocess = 0 is by construction.** Box decode + NMS and the device-to-host readback are
+  folded into the backend's inference timing (`phase_b/demo_timings.py`, `phase_b/backends.py`),
+  so the postprocess column is literally 0.000 ms — it is not free work.
+- **Backends and an unrecorded choice.** The baseline is PyTorch FP32; the optimized loop tries
+  ONNX Runtime CUDA FP32 first and falls back to PyTorch FP32. The CSV does **not** record which
+  backend was actually chosen for the demo loop (ORT CUDA FP32 measured 5.259 ms at batch 1 in
+  `infer.csv`).
+- **Agreement score excludes empty frames.** 60 frames with boxes agree at IoU ≈ 1.0; the 60
+  empty frames were scored IoU 0 in an earlier "50% / 0.500" figure. The corrected agreement is
+  over frames *with boxes* only: 100%, IoU 1.0 (`pipeline_agreement.csv`).
+- **Pipelining regressed here.** In `batching.csv` the pipelined loop is slower than serial at
+  every feed count — a measured regression in this prototype, not a win.
+- **Preprocess is ~5×, not 84×.** At 1920×1080 end-to-end is ~1.43 ms vs OpenCV CPU 7.20 ms
+  (~5×); kernel-only is ~0.049 ms, but plain PyTorch GPU ops (~0.684 ms) vs fused H2D + kernel
+  (~0.57 ms) is only ~1.2×. Most of the win is moving work onto the GPU, not the fusion itself.
+
 ### What is *not* in these results
 
 - TensorRT is absent (`ModuleNotFoundError: No module named 'tensorrt'`); ONNX Runtime CUDA

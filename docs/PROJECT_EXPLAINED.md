@@ -10,6 +10,23 @@ CSV in `results/` or a line of code in this repo.** Jargon is defined the first 
 > the slide pack compares them. Sections below that call fine-tuning "pending" describe the
 > earlier pretrained-only run and are kept as the historical baseline.
 
+> **Reviewer corrections (how to read the numbers honestly).** Six points, one line each:
+> - **FP16 depends on batch size:** slower than FP32 at batch 1 (13.711 vs 10.932 ms) but ~2×
+>   faster at batch 4 (10.285 vs 19.504 ms) and batch 8 (16.658 vs 42.406 ms) — always say which
+>   batch (`results/infer.csv`).
+> - **Postprocess is 0 by construction:** box decode + NMS and the device-to-host readback are
+>   already inside the backend's inference timing, so that column is 0.000 ms, not free work.
+> - **Backends:** baseline is PyTorch FP32; optimized tries ONNX Runtime CUDA FP32 then falls back
+>   to PyTorch FP32, and the CSV does not record which one the demo loop used.
+> - **Agreement excludes empty frames:** the 60 frames with boxes agree at IoU ≈ 1.0; counting the
+>   60 empty frames as IoU 0 gave a misleading "50% / 0.500". Corrected: 100%, IoU 1.0 over frames
+>   with boxes (`results/pipeline_agreement.csv`).
+> - **Pipelining regressed:** in `results/batching.csv` pipelined is slower than serial at every
+>   feed count — a measured regression in this prototype, not a speedup.
+> - **Preprocess is ~5×, not 84×:** ~1.43 ms end-to-end vs OpenCV CPU 7.20 ms at 1920×1080
+>   (~5×), while plain PyTorch GPU ops (~0.684 ms) vs fused H2D + kernel (~0.57 ms) is only ~1.2×;
+>   most of the gain is using the GPU, not fusion (`results/preprocess.csv`).
+
 **Where the numbers come from.** The repo holds two measured runs. The first run is archived in
 `results/synthetic_run1/*.csv`; its Phase A numbers are the ones quoted in `README.md` and
 `docs/kernel_notes.md`, so those are the headline numbers used here. A later re-run wrote

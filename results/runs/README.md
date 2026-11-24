@@ -14,6 +14,12 @@ The active `results/*.csv` files are the `finetuned/` run. `docs/ppt_pack/` is g
 from those active CSVs; image 12 reads both folders directly via
 `tools/make_ppt_pack.py`.
 
+The `pretrained_coco/` run uses COCO class labels and has no measured mAP, while the
+`finetuned/` run uses the four waste classes and reports mAP50 0.4173 in `finetune.csv`.
+Absolute times are not comparable across the two runs — the fine-tuned model detects about
+3× more objects per frame (3.067 vs 1.125 mean detections in the demo timings) — so compare
+only the optimized-vs-baseline speedup *within* each run.
+
 Note on metadata: the downloaded fine-tuned bundle still carries `finetuned=false`
 in some CSV `extra` fields because the flag was set only in the runner process while
 the benchmarks run as separate subprocesses. The code now propagates it through the

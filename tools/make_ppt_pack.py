@@ -157,14 +157,14 @@ DESCRIPTIONS = {
     "02_side_by_side_B": "Shows a second, widely separated frame in the same baseline-versus-optimized side-by-side layout.",
     "02_side_by_side_C": "Shows a third, widely separated frame in the same baseline-versus-optimized side-by-side layout.",
     "03_latency_breakdown": "Stacks the four measured stage times into one baseline bar and one optimized bar with totals.",
-    "04_end_to_end_fps": "Compares rolling and run-level end-to-end FPS and the measured speedup ratio.",
-    "05_inference_ladder": "Compares measured inference backends at the batch sizes that were actually run.",
+    "04_end_to_end_fps": "Compares rolling and run-level end-to-end FPS, the measured speedup ratio, and detection agreement on frames with boxes.",
+    "05_inference_ladder": "Compares measured inference backends at the batch sizes that were actually run; bars are ms per forward of a batch.",
     "06_preprocess_honest": "Compares preprocessing variants while naming the exact timing scope behind every bar.",
     "07_kernels_reduction_matmul": "Compares reduction kernel times and matmul throughput at the largest measured size.",
     "08_memory_bound_and_streams": "Shows Nsight Compute DRAM versus SM utilisation and measured single-to-multi-stream transfer times.",
-    "09_multi_feed": "Compares serial and pipelined FPS per feed at one, two and four feeds.",
-    "10_what_did_not_work": "Collects the three measured regressions: float4 loads, FP16 inference and multi-feed pipelining.",
-    "11_detection_quality": "Shows six fixed-seed validation frames with thin outlined ground-truth boxes and the fine-tune status.",
+    "09_multi_feed": "Compares serial and pipelined FPS per feed at one, two and four feeds; pipelining regressed in this prototype.",
+    "10_what_did_not_work": "Collects the measured regressions: float4 loads, FP16 (batch-dependent) and multi-feed pipelining.",
+    "11_detection_quality": "Shows six fixed-seed validation frames with thin outlined val ground-truth boxes and the measured mAP banner.",
     "12_pretrained_vs_finetuned": "Compares the preserved pretrained-COCO run against the fine-tuned run on the same hardware and frames.",
 }
 
@@ -333,6 +333,32 @@ def fmt(v: float, digits: int = 2) -> str:
     return f"{v:.{digits}f}"
 
 
+def timing_scope_note(c: Canvas, *, y: float) -> None:
+    """Plain-language timing caveat shared by slides 01 and 03.
+
+    The CSVs write postprocess_ms = 0.0000 because NMS/decode is already inside
+    the backend's infer timing (see phase_b/demo_timings.py).  The optimized
+    path *tries* ONNX Runtime CUDA FP32 first and silently falls back to
+    PyTorch FP32; the CSV does not record which one was actually used, so no
+    claim about ORT being active is made here.
+    """
+    c.text(
+        0.04, y,
+        "postprocess_ms is 0.0000 by construction: NMS/decode sits inside the inference-backend timing.",
+        size=MINI, color=MUTED,
+    )
+    c.text(
+        0.04, y - 0.028,
+        "Paths: baseline = PyTorch FP32; optimized tries ONNX Runtime CUDA FP32 first,",
+        size=MINI, color=MUTED,
+    )
+    c.text(
+        0.04, y - 0.052,
+        "then falls back to PyTorch FP32. The CSV does not record which was chosen.",
+        size=MINI, color=MUTED,
+    )
+
+
 # --------------------------------------------------------------------------- #
 # video helpers (OpenCV only; CSV rows map to video frames by POSITION)
 # --------------------------------------------------------------------------- #
@@ -457,6 +483,15 @@ def draw_frame_panel(
     def sy(value: float) -> float:
         return yhi - max(0.0, min(ih, value)) * scale / FIG_H
 
+    # Lay labels out in DISPLAY PIXELS: the axes data limits come from
+    # imshow's extent, so pixel math avoids unit confusion. It also keeps
+    # every label inside its own panel (ax.text is not clipped by default).
+    panel = ax.get_window_extent()
+    px_left, px_right = panel.x0 + 4.0, panel.x1 - 4.0
+    px_bottom, px_top = panel.y0 + 4.0, panel.y1 - 4.0
+    label_h_px = 32.0
+    placed_labels: list[tuple[float, float, float, float]] = []
+    inverse = ax.transData.inverted()
     for box_index, box in enumerate(boxes):
         x1, x2 = sorted((sx(box.x1), sx(box.x2)))
         top, bottom = sorted((sy(box.y1), sy(box.y2)))
@@ -470,16 +505,37 @@ def draw_frame_panel(
             name = cls_names.get(box.cls)
             base = name or f"cls {box.cls}"
             label = f"{base} {box.score:.2f}" if show_score else base
-            label_y = min(top + 0.006 + (0.034 if box_index % 2 else 0.0),
-                          yhi - 0.038)
             # Long labels ('rigid_plastic 0.29') would be cut off at the panel
-            # edge. Keep them inside the footage: right-align near the right
-            # edge, left-align near the left edge.
-            est_w = len(label) * BOX_LABEL * 0.00045
-            if x1 + est_w > xhi - 0.004 and x2 - est_w > xlo + 0.004:
-                label_x, align = x2 - 0.004, "right"
+            # edge: right-align near the right edge, left-align near the left.
+            label_w_px = len(label) * 17.0
+            bx1_px, top_px = ax.transData.transform((x1, top))
+            bx2_px, _ = ax.transData.transform((x2, top))
+            if bx1_px + label_w_px > px_right and bx2_px - label_w_px > px_left:
+                anchor_px, align = bx2_px - 4.0, "right"
             else:
-                label_x, align = min(x1, xhi - est_w - 0.004), "left"
+                anchor_px, align = min(bx1_px, px_right - label_w_px), "left"
+            anchor_px = max(px_left, anchor_px)
+            lx0 = anchor_px - label_w_px if align == "right" else anchor_px
+            lx1 = anchor_px if align == "right" else anchor_px + label_w_px
+            # Collision-aware stagger: a dense frame can have eight nearby
+            # boxes, and a fixed 2-level offset still stacked several tags.
+            steps = (0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, 7)
+            candidates = [
+                min(max(top_px + 6.0 + step * 36.0, px_bottom),
+                    px_top - label_h_px)
+                for step in steps
+            ]
+            ly_px = candidates[-1]
+            for candidate in candidates:
+                if all(
+                    candidate + label_h_px < py0 - 2 or candidate > py1 + 2
+                    or lx1 < px0 - 2 or lx0 > px1 + 2
+                    for px0, px1, py0, py1 in placed_labels
+                ):
+                    ly_px = candidate
+                    break
+            placed_labels.append((lx0, lx1, ly_px, ly_px + label_h_px))
+            label_x, label_y = inverse.transform((anchor_px, ly_px))
             ax.text(
                 label_x, label_y, label, fontsize=BOX_LABEL, color="white",
                 va="bottom", ha=align,
@@ -534,6 +590,7 @@ def build_01(data: PPTData) -> None:
                 source="demo_frame_timings.csv", note="mean across all frames")
     c.text(0.5, 0.19, "Read the four pairs as a pipeline: each pair is the same stage, measured twice.",
            size=BODY, ha="center", color=MUTED)
+    timing_scope_note(c, y=0.150)
     c.finish(footer_for(data, stem), "data-backed")
 
 
@@ -562,8 +619,8 @@ def build_02(data: PPTData, chosen: list[FrameTiming], brightness: list[float],
         c.text(0.03, 0.955, "Same frame, two pipelines", size=TITLE, weight="bold")
         c.text(
             0.03, 0.895,
-            f"CSV row {frame.position} / video frame {frame.position} (position-mapped) "
-            f"| frame id {frame.frame} | baseline detections {frame.baseline_detections}",
+            f"frame id {frame.frame} | baseline detections {frame.baseline_detections} "
+            "| real val footage, same frame in both panels",
             size=SUBTITLE, color=MUTED,
         )
         c.value("CSV frame id", frame.frame, source="demo_frame_timings.csv")
@@ -692,6 +749,7 @@ def build_03(data: PPTData) -> None:
                color=accent, weight="bold")
     c.text(0.045, 0.17, "Each segment is a direct label on its own measured bar; no legend is needed.",
            size=MINI, color=MUTED)
+    timing_scope_note(c, y=0.135)
     c.finish(footer_for(data, stem), "data-backed")
 
 
@@ -751,10 +809,10 @@ def build_04(data: PPTData) -> None:
         c.text(x0 + 0.012, 0.158, f"ratio {ratio}", size=MINI, color=TEAL)
     c.rect(0.520, 0.14, 0.445, 0.13, face="white", edge=GREY, lw=1.3, rounded=True)
     if data.agreement:
-        c.text(0.534, 0.245, "detection agreement", size=MINI, color=MUTED)
+        c.text(0.534, 0.245, data.agreement.name, size=MINI, color=MUTED)
         c.text(0.534, 0.190,
-               f"{data.agreement.name}: {fmt(data.agreement.score * 100, 1)}% "
-               f"({data.agreement.n_agree}/{data.agreement.n_frames} frames)",
+               f"{fmt(data.agreement.score * 100, 1)}% "
+               f"({data.agreement.n_agree}/{data.agreement.n_frames} frames with boxes)",
                size=BODY, color=INK, weight="bold")
         c.value(data.agreement.name, f"{data.agreement.score:.6f}", unit="fraction",
                 source="pipeline_agreement.csv")
@@ -763,10 +821,15 @@ def build_04(data: PPTData) -> None:
         c.value("frames checked", data.agreement.n_frames, unit="frames",
                 source="pipeline_agreement.csv")
         if data.agreement.mean_iou is not None:
-            c.text(0.534, 0.158, f"mean IoU over frames: {fmt(data.agreement.mean_iou, 3)}",
+            c.text(0.534, 0.158,
+                   f"mean IoU over frames with boxes: {fmt(data.agreement.mean_iou, 3)}",
                    size=MINI, color=MUTED)
             c.value("mean IoU", f"{data.agreement.mean_iou:.6f}",
                     source="pipeline_agreement.csv")
+        c.text(0.520, 0.108, "Note: frames where neither pipeline found boxes are excluded;",
+               size=MINI, color=MUTED)
+        c.text(0.520, 0.082, "IoU 0 there is a definition artefact, not a disagreement.",
+               size=MINI, color=MUTED)
     else:
         c.text(0.534, 0.245, "detection agreement", size=MINI, color=MUTED)
         c.text(0.534, 0.190, "NOT RUN: no pipeline_agreement.csv",
@@ -792,7 +855,7 @@ def build_05(data: PPTData) -> None:
     suffix = " (batch 1 only)" if only1 else ""
     c.text(
         0.04, 0.885,
-        f"ms per image{suffix}; batches present in infer.csv: "
+        f"ms per forward (batch N){suffix}; batches present in infer.csv: "
         f"{', '.join(str(b) for b in batches_present)}; absent combinations read NOT RUN",
         size=SUBTITLE, color=MUTED,
     )
@@ -804,7 +867,7 @@ def build_05(data: PPTData) -> None:
     y0, y1 = 0.22, 0.74
     c.line(0.075, y0, 0.965, y0, color=INK, lw=2.0)
     c.text(0.065, y0, "0", size=MINI, ha="right")
-    c.text(0.09, (y0 + y1) / 2, "ms/img", size=MINI, ha="right", color=MUTED)
+    c.text(0.14, (y0 + y1) / 2, "ms / forward", size=MINI, ha="right", color=MUTED)
 
     for gi, backend in enumerate(backends):
         group_x = 0.18 + gi * 0.28
@@ -827,7 +890,11 @@ def build_05(data: PPTData) -> None:
             c.value(f"{backend} batch {batch}", f"{row.time_ms_mean:.6f}", unit="ms",
                     source="infer.csv", note=f"std={row.time_ms_std:.6f} ms")
         c.text(group_x, 0.135, backend, size=VALUE, ha="center", weight="bold")
-    c.text(0.075, 0.075, "FPS values in infer.csv are per-forward and are not mixed into these ms bars.",
+    c.text(0.075, 0.098,
+           "Bars are ms per forward of the whole batch (infer.csv extra: fps_basis=per-forward).",
+           size=MINI, color=MUTED)
+    c.text(0.075, 0.070,
+           "ms per image = ms per forward / batch. FPS values are not mixed into these bars.",
            size=MINI, color=MUTED)
     status = "data-backed" if set(batches_present) == set(all_batches) else "partial: batch 4/8 NOT RUN"
     c.finish(footer_for(data, stem), status)
@@ -871,12 +938,12 @@ def build_06(data: PPTData) -> None:
         c.text(bx, 0.215, name, size=MINI, ha="center", weight="bold")
         c.value(name, f"{row.time_ms_mean:.6f}", unit="ms", source="preprocess.csv",
                 note=f"std={row.time_ms_std:.6f} ms; {row.extra.get('timing', 'no timing scope')}")
-    c.text(0.04, 0.185, "Scope definitions (timing= field copied from preprocess.csv):",
+    c.text(0.04, 0.160, "Scope definitions (timing= field copied from preprocess.csv):",
            size=BODY, color=MUTED, weight="bold")
     for i, name in enumerate(present):
         row = scopes[name]
         timing = row.extra.get("timing", "not recorded in CSV")
-        y = 0.155 - i * 0.022
+        y = 0.134 - i * 0.019
         c.text(0.055, y, f"{name}: {timing}", size=MINI, color=INK)
     status = "data-backed" if have_src else "partial: requested source resolution absent"
     c.finish(footer_for(data, stem), status)
@@ -896,7 +963,7 @@ def build_07(data: PPTData) -> None:
     c.text(0.04, 0.95, "Reduction time and matmul throughput", size=TITLE, weight="bold")
     c.text(
         0.04, 0.885,
-        f"reduction size {k['reduction_size']} elements (log ms) | matmul N={k['matmul_n']} "
+        f"reduction size {k['reduction_size']} elements (log ms, ratios vs naive_global) | matmul N={k['matmul_n']} "
         f"| tiled = {fmt(pct, 1)}% of cuBLAS" if pct is not None else "matmul percentage unavailable",
         size=SUBTITLE, color=MUTED,
     )
@@ -913,9 +980,11 @@ def build_07(data: PPTData) -> None:
     names = ("naive_global", "shared_mem", "warp_shuffle", "cub_reference")
     values = [red[n].time_ms_mean for n in names if n in red]
     if values:
+        naive_v = red["naive_global"].time_ms_mean if "naive_global" in red else max(values)
         vmin, vmax = min(values) * 0.55, max(values) * 1.6
         lo, hi = 0.265, 0.735
         c.line(0.07, lo, 0.445, lo, color=INK, lw=1.8)
+        c.text(0.072, hi + 0.012, "vertical axis: ms, log scale", size=MINI, color=MUTED)
         for i, name in enumerate(names):
             bx = 0.105 + i * 0.09
             if name not in red:
@@ -928,9 +997,13 @@ def build_07(data: PPTData) -> None:
             c.rect(bx - 0.032, lo, 0.064, max(height, 0.01), face=color, edge="white", lw=1.0)
             c.text(bx, lo + max(height, 0.01) + 0.025, fmt(v, 3), size=VALUE,
                    ha="center", color=color, weight="bold")
-            c.text(bx, 0.225, name.replace("_", "\n"), size=MINI, ha="center")
+            c.text(bx, 0.232, name.replace("_", "\n"), size=MINI, ha="center")
+            # A log bar makes a 75x win look like a 7x win without an axis or
+            # a printed ratio, so state the measured ratio explicitly.
+            ratio_text = "naive (1x)" if name == "naive_global" else f"{naive_v / v:.0f}x vs naive"
+            c.text(bx, 0.196, ratio_text, size=MINI, ha="center", color=color, weight="bold")
             c.value(f"reduction {name}", f"{v:.6f}", unit="ms", source="reduction.csv",
-                    note=f"std={red[name].time_ms_std:.6f} ms")
+                    note=f"std={red[name].time_ms_std:.6f} ms; {ratio_text}")
     else:
         c.placeholder("no reduction rows in reduction.csv", panel="reduction", source="reduction.csv", y=0.48)
 
@@ -984,9 +1057,12 @@ def build_08(data: PPTData) -> None:
         c.text(0.05, 0.785, f"SOL THROUGHPUT  {sol.kernel}", size=VALUE, color=TEAL, weight="bold")
         lo, hi = 0.28, 0.70
         c.line(0.07, lo, 0.445, lo, color=INK, lw=1.8)
+        # Neutral slate for SM% here: orange means "baseline" on every other
+        # slide, so reusing it for an NCu utilisation metric is misleading.
+        SM_GREY = "#64748B"
         for i, (name, v, color) in enumerate((
             ("DRAM", sol.dram_mean, TEAL),
-            ("SM", sol.sm_mean, ORANGE),
+            ("SM", sol.sm_mean, SM_GREY),
         )):
             bx = 0.16 + i * 0.17
             height = (v / 100.0) * (hi - lo)
@@ -995,10 +1071,7 @@ def build_08(data: PPTData) -> None:
                    ha="center", color=color, weight="bold")
             c.text(bx, 0.225, f"{name} of peak", size=MINI, ha="center")
             c.value(f"ncu {name} mean", f"{v:.6f}", unit="% of peak", source="profiling_ncu.csv",
-                    note=f"{len(sol.passes)} passes")
-        passed = ",".join(p.ident for p in sol.passes)
-        c.text(0.05, 0.195, f"pass IDs: {passed}", size=MINI, color=MUTED)
-        c.value("ncu pass IDs", passed, source="profiling_ncu.csv")
+                    note=f"mean over {len(sol.passes)} NCu passes")
     else:
         c.placeholder("no float4 DRAM/SM pair in profiling_ncu.csv",
                       panel="ncu", source="profiling_ncu.csv", y=0.48)
@@ -1018,7 +1091,7 @@ def build_08(data: PPTData) -> None:
             height = (v / ymax) * (hi - lo)
             color = ORANGE if name == "sync_pageable" else TEAL
             c.rect(bx - 0.04, lo, 0.08, height, face=color, edge="white", lw=1.0)
-            c.text(bx, lo + height + 0.026, fmt(v, 2), size=VALUE,
+            c.text(bx, lo + height + 0.026, f"{fmt(v, 2)} ms", size=VALUE,
                    ha="center", color=color, weight="bold")
             c.text(bx, 0.225, name.replace("_", "\n"), size=MINI, ha="center")
             c.value(f"streams {name}", f"{v:.6f}", unit="ms", source="streams.csv",
@@ -1052,17 +1125,24 @@ def build_09(data: PPTData) -> None:
                     source="batching.csv")
             c.value(f"pipelined fps_per_feed {feed}", f"{pipe:.6f}", unit="FPS",
                     source="batching.csv")
-    verdict = (
-        f"Pipelining got worse at {', '.join(str(f) for f in worse)} feeds"
-        if worse else "Pipelining did not get worse at the measured feeds"
-    )
-    c.text(0.04, 0.95, f"Multi-feed: {verdict}", size=TITLE, weight="bold")
+    # This is a measured result of THIS prototype, not a claim that pipelining
+    # cannot help in general.  Say "regressed" plainly; never dress it as a win.
+    if worse:
+        title = "Multi-feed: pipelining regressed in this prototype (measured)"
+    elif better:
+        title = "Multi-feed: pipelining improved in this prototype (measured)"
+    else:
+        title = "Multi-feed: serial vs pipelined (measured)"
+    c.text(0.04, 0.95, title, size=TITLE, weight="bold")
     pair4 = feeds.get(4, {})
     if "serial_batch" in pair4 and "pipelined_batch" in pair4:
         serial4 = float(pair4["serial_batch"].extra["fps_per_feed"])
         pipe4 = float(pair4["pipelined_batch"].extra["fps_per_feed"])
-        detail = (f"FPS/feed from batching.csv extra | 4 feeds: serial {fmt(serial4, 1)} "
-                  f"vs pipelined {fmt(pipe4, 1)} FPS/feed")
+        detail = (f"Measured FPS/feed from batching.csv | 4 feeds: serial {fmt(serial4, 1)} "
+                  f"vs pipelined {fmt(pipe4, 1)}; lower FPS means higher per-feed latency")
+        if worse:
+            detail += (f". Pipelining was slower at every measured feed count "
+                       f"({', '.join(str(f) for f in worse)} feeds)")
     else:
         detail = "FPS per feed from the extra field of batching.csv; absent rows read NOT RUN"
     c.text(0.04, 0.885, detail, size=SUBTITLE, color=MUTED)
@@ -1097,7 +1177,9 @@ def build_09(data: PPTData) -> None:
                    ha="center", color=color, weight="bold")
         c.text(group_x, 0.19, f"{feed} feed{'s' if feed != 1 else ''}", size=VALUE,
                ha="center", weight="bold")
-    c.text(0.075, 0.105, "FPS per feed is read from the extra field of batching.csv; totals are not used here.",
+    c.text(0.075, 0.105, "FPS per feed is read from the extra field of batching.csv; lower FPS = higher latency.",
+           size=MINI, color=MUTED)
+    c.text(0.075, 0.075, "This is a measured regression in this prototype, not a general claim about pipelining.",
            size=MINI, color=MUTED)
     c.finish(footer_for(data, stem), "data-backed")
 
@@ -1126,19 +1208,42 @@ def build_10(data: PPTData) -> None:
                 "verdict": "slower" if after > before else "faster" if after < before else "equal",
                 "detail": f"scalar {fmt(before, 3)} ms vs float4 {fmt(after, 3)} ms",
             })
-        if 1 in ladder.get("pt_fp32", {}):
-            before = ladder["pt_fp32"][1].time_ms_mean
-            after = ladder.get("pt_fp16", {}).get(1)
-            if after is not None:
-                a = after.time_ms_mean
-                specs.append({
-                    "title": "FP16 inference vs FP32 inference",
-                    "source": "infer.csv",
-                    "before": before, "after": a, "unit": "ms", "digits": 2,
-                    "before_name": "FP32", "after_name": "FP16",
-                    "verdict": "slower" if a > before else "faster" if a < before else "equal",
-                    "detail": f"batch 1: FP32 {fmt(before, 2)} ms vs FP16 {fmt(a, 2)} ms",
-                })
+        fp32_rows, fp16_rows = ladder.get("pt_fp32", {}), ladder.get("pt_fp16", {})
+        common_batches = sorted(set(fp32_rows) & set(fp16_rows))
+        if common_batches:
+            # FP16 is batch-dependent here: slower at batch 1, ~2x faster at
+            # batch 4 and 8.  The bars show the first shared batch, but the
+            # printed caption covers EVERY shared batch with its real ratio.
+            first = common_batches[0]
+            before = fp32_rows[first].time_ms_mean
+            after = fp16_rows[first].time_ms_mean
+            parts: list[str] = []
+            slower = faster = 0
+            for batch in common_batches:
+                f32 = fp32_rows[batch].time_ms_mean
+                f16 = fp16_rows[batch].time_ms_mean
+                if f16 > f32:
+                    slower += 1
+                    phrase = f"{f16 / f32:.2f}x slower"
+                elif f16 < f32:
+                    faster += 1
+                    phrase = f"{f32 / f16:.2f}x faster"
+                else:
+                    phrase = "equal"
+                parts.append(
+                    f"batch {batch}: FP32 {fmt(f32, 2)} vs FP16 {fmt(f16, 2)} ms ({phrase})"
+                )
+            verdict = ("mixed - batch-dependent" if slower and faster else
+                       "slower" if slower else "faster" if faster else "equal")
+            specs.append({
+                "title": "FP16 vs FP32 inference (all measured batches)",
+                "source": "infer.csv",
+                "before": before, "after": after, "unit": "ms", "digits": 2,
+                "before_name": f"FP32 b{first}", "after_name": f"FP16 b{first}",
+                "verdict": verdict,
+                "detail": "; ".join(parts),
+                "captions": [parts[0], "  |  ".join(parts[1:])],
+            })
         pair = feeds.get(4, {})
         if "serial_batch" in pair and "pipelined_batch" in pair:
             before = float(pair["serial_batch"].extra["fps_per_feed"])
@@ -1156,7 +1261,7 @@ def build_10(data: PPTData) -> None:
     specs = row_specs()
     c.text(0.04, 0.95, "What did not work (measured regressions)", size=TITLE, weight="bold")
     c.text(0.04, 0.885,
-           "scalar vs float4, FP32 vs FP16, serial vs pipelined - every value read from results CSVs",
+           "float4, FP16 vs FP32 (all measured batches), serial vs pipelined - every value read from results CSVs",
            size=SUBTITLE, color=MUTED)
     if not specs:
         c.placeholder("no regression rows in vector_add.csv / infer.csv / batching.csv",
@@ -1184,6 +1289,10 @@ def build_10(data: PPTData) -> None:
                    size=MINI, color=color, weight="bold")
             c.value(f"{spec['title']} {name}", f"{v:.6f}", unit=spec["unit"],
                     source=spec["source"], note=spec["detail"])
+        # Some rows (e.g. FP16) need a caption that covers more than the two
+        # plotted bars; print it below the bars so no batch is hidden.
+        for k, line in enumerate(spec.get("captions", [])):
+            c.text(0.05, y - 0.078 - k * 0.024, line, size=MINI, color=MUTED)
     c.finish(footer_for(data, stem), "data-backed")
 
 
@@ -1203,7 +1312,7 @@ def build_11(data: PPTData) -> None:
     seed = 0
     chosen = random.Random(seed).sample(images, min(6, len(images))) if images else []
     train, val, total_boxes = info.get("train"), info.get("val"), info.get("boxes")
-    c.text(0.04, 0.95, "Detection quality: six validation frames", size=TITLE, weight="bold")
+    c.text(0.04, 0.95, "Dataset samples: val ground truth", size=TITLE, weight="bold")
     c.text(
         0.04, 0.885,
         f"fixed seed {seed} | {train} train / {val} val images | {total_boxes} boxes in the subset"
@@ -1220,11 +1329,11 @@ def build_11(data: PPTData) -> None:
 
     if data.finetune:
         c.rect(0.04, 0.755, 0.92, 0.075, face="white", edge=TEAL, lw=1.6, rounded=True)
-        c.text(0.06, 0.792, f"mAP50: {fmt(data.finetune.map50, 3)}",
+        c.text(0.06, 0.792, f"mAP50 (measured on val): {fmt(data.finetune.map50, 3)}",
                size=BODY, color=TEAL, weight="bold")
         c.value("mAP50", f"{data.finetune.map50:.6f}", source="finetune.csv")
         if data.finetune.map50_95 is not None:
-            c.text(0.52, 0.792, f"mAP50-95: {fmt(data.finetune.map50_95, 3)}",
+            c.text(0.52, 0.792, f"mAP50-95 (measured on val): {fmt(data.finetune.map50_95, 3)}",
                    size=BODY, color=TEAL, weight="bold")
             c.value("mAP50-95", f"{data.finetune.map50_95:.6f}", source="finetune.csv")
         status = "data-backed"
@@ -1248,8 +1357,10 @@ def build_11(data: PPTData) -> None:
         y0 = 0.425 - row * 0.31
         w, h = 0.30, 0.305
         boxes = val_boxes(path)
-        c.text(x0 + 0.006, y0 + h - 0.004, path.stem[:26], size=MINI, color=MUTED)
-        ax = c.fig.add_axes([x0, y0, w, h - 0.032], facecolor="white")
+        # Give the filename its own strip above the photo; writing it at the
+        # image edge made it overlap the pixels of the frame below.
+        c.text(x0 + 0.006, y0 + h - 0.015, path.stem[:26], size=MINI, color=MUTED)
+        ax = c.fig.add_axes([x0, y0 + 0.030, w, h - 0.062], facecolor="white")
         ax.set_axis_off()
         try:
             rgb = cv2.cvtColor(cv2.imread(str(path)), cv2.COLOR_BGR2RGB)
@@ -1266,8 +1377,7 @@ def build_11(data: PPTData) -> None:
         ]
         draw_frame_panel(c, ax, rgb, val_box_objects, INK, names,
                          show_score=False, draw_labels=False)
-        # The label helper prints a score for per-frame detections; val labels
-        # have none, so overlay a corrected class-only label below.
+        c.text(x0 + 0.006, y0 + 0.015, f"val GT boxes: {len(boxes)}", size=MINI, color=MUTED)
         c.value(f"val frame {i + 1}", path.name, source="waste.yaml", note="fixed seed 0")
         c.value(f"val frame {i + 1} boxes", len(boxes), unit="boxes", source=f"{path.stem}.txt")
     caption = (
@@ -1295,6 +1405,10 @@ def build_12(data: PPTData) -> None:
         "device.json",
     ]
     c = Canvas(stem, sources)
+    # This slide compares BOTH runs, so a "finetuned=true" badge would be
+    # wrong. Keep the footer short enough not to clip at the image edges;
+    # full source paths are still recorded in SOURCES / data/<stem>.csv.
+    footer = f"prototype | two preserved runs | GPU: {data.device.footer_model}"
 
     def archived(run: str, name: str) -> list[dict[str, str]]:
         path = RESULTS / "runs" / run / name
@@ -1319,7 +1433,7 @@ def build_12(data: PPTData) -> None:
     if not pre or not tuned:
         c.placeholder("one of the preserved runs is missing from results/runs/",
                       source="results/runs/", y=0.5)
-        c.finish(footer_for(data, stem), "placeholder: archived run missing")
+        c.finish(footer, "placeholder: archived run missing")
         return
 
     def total(rows: list[dict[str, str]], side: str) -> float | None:
@@ -1375,7 +1489,7 @@ def build_12(data: PPTData) -> None:
            f"The fine-tuned model finds about {more}x more objects per frame, so absolute "
            "times are not a speed comparison; read speedup within each run.",
            size=MINI, color=MUTED)
-    c.finish(footer_for(data, stem), "data-backed")
+    c.finish(footer, "data-backed")
 
 
 # --------------------------------------------------------------------------- #

@@ -1,7 +1,7 @@
 panel,label,value,unit,source,note
 ,float4 loads vs scalar loads scalar,2.291340,ms,vector_add.csv,scalar 2.291 ms vs float4 2.370 ms
 ,float4 loads vs scalar loads float4,2.370470,ms,vector_add.csv,scalar 2.291 ms vs float4 2.370 ms
-,FP16 inference vs FP32 inference FP32,10.932488,ms,infer.csv,batch 1: FP32 10.93 ms vs FP16 13.71 ms
-,FP16 inference vs FP32 inference FP16,13.711082,ms,infer.csv,batch 1: FP32 10.93 ms vs FP16 13.71 ms
+,FP16 vs FP32 inference (all measured batches) FP32 b1,10.932488,ms,infer.csv,batch 1: FP32 10.93 vs FP16 13.71 ms (1.25x slower); batch 4: FP32 19.50 vs FP16 10.29 ms (1.90x faster); batch 8: FP32 42.41 vs FP16 16.66 ms (2.55x faster)
+,FP16 vs FP32 inference (all measured batches) FP16 b1,13.711082,ms,infer.csv,batch 1: FP32 10.93 vs FP16 13.71 ms (1.25x slower); batch 4: FP32 19.50 vs FP16 10.29 ms (1.90x faster); batch 8: FP32 42.41 vs FP16 16.66 ms (2.55x faster)
 ,Pipelined vs serial at 4 feeds serial,70.122700,FPS/feed,batching.csv,4 feeds: serial 70.1 vs pipelined 28.1 FPS/feed
 ,Pipelined vs serial at 4 feeds pipelined,28.101000,FPS/feed,batching.csv,4 feeds: serial 70.1 vs pipelined 28.1 FPS/feed
