@@ -109,6 +109,20 @@ def main() -> int:
     (REPO / "results").mkdir(exist_ok=True)
     (REPO / "reports").mkdir(exist_ok=True)
 
+    # ---- clean slate: a rerun must never mix two sessions' rows -----------
+    # Previous CSV/JSON files are MOVED to a timestamped archive, not deleted.
+    # Every chart is then built from exactly one consistent measurement run.
+    import datetime
+    archive = REPO / "results" / f"archive_{datetime.datetime.now():%Y%m%d_%H%M%S}"
+    previous = sorted(path for path in (REPO / "results").iterdir()
+                      if path.is_file() and path.suffix in {".csv", ".json"})
+    if previous:
+        archive.mkdir(parents=True, exist_ok=True)
+        for path in previous:
+            path.rename(archive / path.name)
+        print(f"archived {len(previous)} previous results to {archive.name}",
+              flush=True)
+
     # ---- environment -----------------------------------------------------
     def environment():
         import torch
@@ -117,6 +131,9 @@ def main() -> int:
             raise RuntimeError("no GPU - select a T4 runtime and reconnect")
         print("gpu:", torch.cuda.get_device_name(0), "torch:", torch.__version__,
               "cuda:", torch.version.cuda)
+        from common import write_device_info
+
+        print("recorded:", write_device_info())
         if have("ninja") is False:
             sh("pip -q install ninja")
         print("ninja:", shutil_which("ninja") or "MISSING")
@@ -147,6 +164,27 @@ def main() -> int:
         # No video rendering in this workflow; ffmpeg is not required.
 
     step("environment", environment)
+
+    # ---- Phase A: the four hand-written CUDA kernels ----------------------
+    def phase_a():
+        import torch
+
+        props = torch.cuda.get_device_properties(0)
+        arch = f"sm_{props.major}{props.minor}"
+        sh(f"make -C {shlex_quote(REPO / 'phase_a')} ARCH={arch} -j2")
+        runs = [
+            ("vector_add", ["--n", "50000000", "--iters", "50"]),
+            ("reduction", ["--n", "16777216", "--iters", "50"]),
+            ("matmul", ["--n", "1024", "--cpu-n", "256", "--iters", "20"]),
+            ("streams", ["--total-mb", "64", "--iters", "20"]),
+        ]
+        for name, args in runs:
+            cmd = (f"{shlex_quote(REPO / 'build' / name)} "
+                   + " ".join(shlex_quote(a) for a in args)
+                   + f" --csv {shlex_quote(REPO / 'results' / (name + '.csv'))}")
+            sh(cmd, check=False)
+
+    step("phase A kernels (vector add, reduction, matmul, streams)", phase_a)
 
     # ---- Task 1: fair preprocess benchmark (writes results/preprocess.csv) -
     step("preprocess benchmark",
@@ -220,9 +258,12 @@ def main() -> int:
          lambda: sh(f"python {shlex_quote(PHASE_B / 'pipeline_agreement.py')}"))
 
     def multifeed():
+        tuned = REPO / "weights/waste_yolov8n.pt"
+        model = tuned if tuned.exists() else REPO / "models/yolov8n.pt"
         sh(
             f"python {shlex_quote(PHASE_B / 'pipeline.py')} "
-            f"--backend pt_fp32 --source {shlex_quote(REPO / 'demo/belt_input.mp4')} "
+            f"--backend pt_fp32 --models {shlex_quote(model)} "
+            f"--source {shlex_quote(REPO / 'demo/belt_input.mp4')} "
             f"--imgsz 640 --frames 300 --warmup 20 "
             f"--csv {shlex_quote(REPO / 'results' / 'pipeline.csv')} "
             f"--batch-csv {shlex_quote(REPO / 'results' / 'batching.csv')}",

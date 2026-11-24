@@ -22,3 +22,10 @@ models/*.engine
 reports/*.nsys-rep
 reports/*.ncu-rep
 reports/*.sqlite
+
+# Speaking / narration aids are for delivery, not repo documentation.
+# They stay on disk locally but are never committed.
+**/DEMO_SCRIPT.md
+**/*SPEAKER_NOTES*
+**/*SPEAKING_SCRIPT*
+**/*TALK_TRACK*
