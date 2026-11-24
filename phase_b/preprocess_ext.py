@@ -20,6 +20,7 @@ pad_x, pad_y), which Python computes once using the formula in
 
 from __future__ import annotations
 
+import shutil
 import sys
 from pathlib import Path
 from typing import Sequence
@@ -95,6 +96,16 @@ def get_extension():
     source = Path(__file__).with_name("preprocess.cu")
     if not source.exists():
         raise FileNotFoundError(f"CUDA source not found: {source}")
+
+    # torch's JIT versioner writes its "already built" marker BEFORE ninja is
+    # checked (verify_ninja_availability() lives inside the build step). So a
+    # build that dies early -- ninja missing on a fresh Colab image, say --
+    # leaves a marker but no .so, and the next load() skips the build and fails
+    # with a misleading "cannot open shared object file". If there is no .so,
+    # the marker is stale: drop the whole cache and force a real rebuild.
+    if not any(BUILD_DIR.glob("*.so")):
+        shutil.rmtree(BUILD_DIR, ignore_errors=True)
+        BUILD_DIR.mkdir(parents=True, exist_ok=True)
 
     try:
         _EXT = load(
