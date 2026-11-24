@@ -20,6 +20,7 @@ import argparse
 import datetime as dt
 import shutil
 import sys
+import time
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -57,6 +58,25 @@ def _yaml_scalar(text: str, key: str) -> str | None:
         if line.startswith(f"{key}:"):
             return line.split(":", 1)[1].strip().strip("'\"")
     return None
+
+
+def _metric(box: Any, *names: str) -> str:
+    """Read the first available metric from ultralytics' box results object."""
+    if box is None:
+        return "unknown"
+    for name in names:
+        value = getattr(box, name, None)
+        if value is not None:
+            try:
+                return f"{float(value):.6f}"
+            except (TypeError, ValueError):
+                return str(value)
+    metrics = getattr(box, "results_dict", None) or {}
+    for name in names:
+        for key in (f"metrics/{name}(B)", name):
+            if key in metrics:
+                return str(metrics[key])
+    return "unknown"
 
 
 def _n_train(results: Any, data_yaml: Path) -> str:
@@ -126,6 +146,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Colab's free tier has 2 vCPUs: workers > 2 is a known deadlock.
     # cache=False on the first epoch: do not copy the dataset into RAM/disk on a
     # machine with tight memory; enable caching only on later runs if needed.
+    t0 = time.perf_counter()
     results = model.train(
         data=str(data_yaml),
         epochs=args.epochs,
@@ -152,21 +173,39 @@ def main(argv: Sequence[str] | None = None) -> int:
     shutil.copy2(best_pt, installed)
     print(f"Copied to: {installed}")
 
+    train_ms = (time.perf_counter() - t0) * 1e3  # real wall clock, never typed
+    # Also publish under the name the demo scripts expect.
+    weights_dir = REPO_ROOT / "weights"
+    weights_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(best_pt, weights_dir / "waste_yolov8n.pt")
+
     map50 = _map50(results)
+    box = getattr(results, "box", None)
+    map5095 = _metric(box, "map50_95", "map")
+    precision = _metric(box, "mp", "precision")
+    recall = _metric(box, "mr", "recall")
     n_train = _n_train(results, data_yaml)
     append_row(
         bench="finetune",
         variant=args.model,
         size=args.epochs,
         size_unit="epochs",
-        time_ms_mean=0.0,
+        time_ms_mean=train_ms,
         time_ms_std=0.0,
         throughput=0.0,
         throughput_unit="",
-        extra=f"mAP50={map50},imgsz={args.imgsz},n_train={n_train}",
+        extra=(
+            f"mAP50={map50},mAP50_95={map5095},precision={precision},"
+            f"recall={recall},imgsz={args.imgsz},n_train={n_train},"
+            f"weights=weights/waste_yolov8n.pt"
+        ),
         filename="finetune.csv",
     )
-    print(f"Recorded results/finetune.csv: mAP50={map50}, imgsz={args.imgsz}, n_train={n_train}")
+    print(
+        f"Recorded results/finetune.csv: train_ms={train_ms:.1f}, mAP50={map50}, "
+        f"mAP50_95={map5095}, precision={precision}, recall={recall}, "
+        f"imgsz={args.imgsz}, n_train={n_train}"
+    )
     print(
         "Reminder: a few epochs on a few thousand images will not beat COCO "
         "pretraining for waste classes; this run demonstrates the pipeline only."

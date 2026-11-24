@@ -1,8 +1,16 @@
 # CUDA-Accelerated Conveyor Waste Detection Pipeline
 
-A CUDA engineering prototype: a conveyor-belt waste detector where every optimisation is
-measured with CUDA events, checked against a CPU reference, and written to a CSV by the code
-that ran it.
+A CUDA performance study of a conveyor-belt waste detection pipeline: hand-written GPU kernels,
+a fine-tuned YOLOv8n, and profiling that shows what got faster and why.
+
+![Pipeline overview](docs/overview.png)
+
+**60-90 s screen demo:** [`demo/demo.mp4`](demo/demo.mp4) — *pending the real-dataset Colab run;
+the renderer is in `demo/render_demo.py` and refuses to invent numbers.*
+
+> **Status: prototype.** Everything below marked "measured" comes from a CSV. The first CSVs
+> came from a synthetic run (archived in `results/synthetic_run1/`); the dataset, fine-tune,
+> real-video and re-measured preprocess stages are code-complete but await a T4 run.
 
 **Status: prototype.** Not deployed, not production, not a state-of-the-art detector. It runs
 end to end from one Colab notebook on a free T4.
@@ -141,7 +149,7 @@ comes from [`results/summary.md`](results/summary.md), not from expectation:
 | Technique | Mechanism | Measured on this T4 | Where |
 |---|---|---|---|
 | 128-bit loads (`float4`) | fewer memory transactions per element | **no win**: 2.412 ms vs 2.287 ms scalar — both already at ~250–260 GB/s | `vector_add.cu` |
-| Shared-memory reduction | removes a global round trip per tree level | 0.290 ms vs 21.690 ms naive | `reduction.cu` |
+| Shared-memory reduction | removes a global round trip per tree level | 0.290 ms vs **CUB 0.261 ms** (within ~11%); the "80×" figure is only against a deliberately slow one-block baseline | `reduction.cu` |
 | Warp shuffle | removes intra-warp barriers and shared traffic | 0.295 ms — essentially tied with shared memory (bandwidth floor) | `reduction.cu` |
 | Shared-memory tiling | reuse a tile 32× so GEMM turns compute-bound | 732 vs 667 GFLOP/s; cuBLAS still 6130 | `matmul.cu` |
 | Pinned memory | lets the copy engine DMA without a bounce buffer | 11.10 ms vs 31.16 ms pageable (2.81×) | `streams.cu` |

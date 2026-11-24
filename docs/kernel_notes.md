@@ -382,3 +382,28 @@ is short, so the per-slot event bookkeeping and pinned-buffer occupancy cost mor
 overlap saves. The 1.03× gain at 300 single frames is the realistic size of the win here.
 This is why the write-up claims only "copy of frame *k+1* overlaps inference of frame *k*",
 never a 2× pipeline.
+
+---
+
+## 10. Weak spots, stated plainly
+
+**Tiled matmul is far from cuBLAS.** At N=1024 the measured means are naive 3.221 ms
+(666.75 GFLOP/s), tiled 2.935 ms (731.76 GFLOP/s) and cuBLAS 0.350 ms (6130.23 GFLOP/s).
+So tiling buys about 10% over naive and reaches roughly 12% of cuBLAS. What is missing is
+not mysterious, and it is **not implemented here**: register blocking (each thread owns an
+8×8 micro-tile so shared-memory loads are reused from registers), vectorised 128-bit loads,
+double buffering of the next global→shared tile, tensor-core MMA, and per-architecture
+swizzling/autotuning. §3 explains the mechanism; these numbers explain the remaining gap.
+
+**Reduction's "80×" is against a deliberately slow baseline.** Measured at N=2²⁴:
+naive_global 21.690 ms, shared_mem 0.290 ms, warp_shuffle 0.295 ms, CUB 0.261 ms. The honest
+headline is that our two hand-written versions land within ~11–13% of CUB, not that they are
+80× faster than a one-block tree. The README therefore leads with the CUB comparison.
+Warp shuffle being *marginally slower* than shared memory here is the expected outcome once
+the kernel is memory-bound: removing barriers does not make DRAM deliver bytes faster.
+
+**Vector add is memory-bound, confirmed by hardware counters.** ncu reported for
+`vector_add_float4`: DRAM throughput ~95.5%, SM throughput ~6.7%, achieved occupancy
+~99–101%, 18 registers per thread. Only ~7% of the compute pipeline is in use while ~95% of
+memory is — there is nothing left to optimise except moving fewer bytes. Its CUDA-event
+throughput was 248.80 GB/s (float4) and 262.32 GB/s (scalar), both near the HBM ceiling.
