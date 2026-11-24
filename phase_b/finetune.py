@@ -69,7 +69,16 @@ def _absolute_data_yaml(data_yaml: Path) -> Path:
     data/. Resolving train/val against the yaml's own directory here makes
     training work from any CWD, including the Colab notebook root.
     """
+    # Base for train/val is the `path:` entry when present (it is the dataset
+    # root), otherwise the yaml's own folder. Newer generated yamls use an
+    # absolute `path:` pointing at data/waste with relative `images/train`.
     base = data_yaml.parent.resolve()
+    for line in data_yaml.read_text(encoding="utf-8").splitlines():
+        if line.strip().startswith("path:"):
+            declared = Path(line.split(":", 1)[1].strip().strip("'\""))
+            base = declared if declared.is_absolute() else base / declared
+            break
+    base = base.resolve()
     lines: list[str] = []
     for line in data_yaml.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
