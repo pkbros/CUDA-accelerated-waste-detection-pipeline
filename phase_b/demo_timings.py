@@ -37,7 +37,13 @@ def _boxes_json(pred) -> str:
             xyxy = [float(v) for v in b[:4]]
         except (TypeError, ValueError):
             continue
-        out.append(xyxy + [str(c), float(s)])
+        # c may be a 0-d torch tensor; str(c) would render "tensor(27)" in the
+        # video overlay. Convert to a plain int for a readable class label.
+        try:
+            cls = int(c)
+        except (TypeError, ValueError):
+            cls = str(c)
+        out.append(xyxy + [cls, float(s)])
     return json.dumps(out)
 
 

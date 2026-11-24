@@ -5,20 +5,54 @@ a pretrained YOLOv8n on real conveyor frames, and profiling that shows what got 
 
 ![Pipeline overview](docs/overview.png)
 
-**60-90 s screen demo:** [`demo/demo.mp4`](demo/demo.mp4) - *not rendered yet.* The real 30 s
-input (`demo/belt_input.mp4`) and the renderer (`demo/render_demo.py`) are in place; the renderer
-refuses to invent numbers and waits for `results/demo_frame_timings.csv` from a T4 run.
+**60-90 s screen demo:** [`demo/demo.mp4`](demo/demo.mp4) - rendered by the T4 run from real
+ZeroWaste val frames. The results bundle downloads `results/*.csv`; the MP4 itself must be
+downloaded separately from Colab's Files sidebar (`demo/demo.mp4`, `demo/demo_short.mp4`).
 
-> **Status: prototype.** Everything below marked "measured" comes from a CSV. The first CSVs
-> came from a synthetic run (archived in `results/synthetic_run1/`); the dataset, fine-tune,
-> real-video and re-measured preprocess stages are code-complete but await a T4 run.
-
-**Status: prototype.** Not deployed, not production, not a state-of-the-art detector. It runs
-end to end from one Colab notebook on a free T4.
+> **Status: prototype.** Every number below comes from a CSV written by a run on a Colab
+> **Tesla T4 (sm_75, CUDA 13.0)**. The first synthetic run is archived in
+> `results/synthetic_run1/`; the current `results/*.csv` are from the later real-data run.
+> Fine-tuning was deliberately skipped: this is a CUDA performance study, not a detector project.
 
 The rule this repo is built around: *if a benchmark did not run, it does not appear.*
 `results/summary.md` is generated from `results/*.csv`, and anything missing shows up as
 **NOT RUN** rather than being estimated.
+
+---
+
+## Results at a glance
+
+Measured on a **Tesla T4 (sm_75, 14.56 GiB, torch 2.14.1+cu130, CUDA 13.0)**.
+Full tables: [`results/summary.md`](results/summary.md).
+
+| What | Baseline | Ours | Speedup |
+|---|---|---|---|
+| **End-to-end, 120 real conveyor frames** (demo timings) | 63.9 ± 10.9 FPS | 93.0 ± 14.9 FPS | **1.46x** |
+| Preprocess stage in that loop | OpenCV CPU 4.280 ± 2.066 ms | fused CUDA 0.441 ± 0.230 ms | **9.7x** |
+| Fused preprocess, host frame to ready GPU tensor (1920x1080) | OpenCV+upload 6.283 ms | 1.378 ms | **4.56x** |
+| Kernel only, input already resident | 0.049 ms | - | - (bandwidth-limited) |
+| Fused kernel vs plain PyTorch GPU ops, pinned H2D + kernel | PyTorch 0.673 ms | 0.605 ms | **1.11x** |
+| Reduction, N=2^24 | CUB 0.261 ms | ours 0.290 ms | 0.90x of CUB |
+| Tiled matmul, N=1024 | cuBLAS 6130 GFLOP/s | ours 732 GFLOP/s | 12% of cuBLAS |
+| Copy+kernel, 64 MiB, 4 chunks | pageable 31.16 ms | 3 streams 7.25 ms | **4.30x** |
+| Vector add, N=5e7 | scalar 262.3 GB/s | float4 248.8 GB/s | no win (at HBM ceiling) |
+
+Both demo pipelines used the **same pretrained YOLOv8n and the same real frames**; only the
+preprocess, backend and transport changed. Mean detections were **1.125 per frame in both**
+(76 of 120 frames had boxes), which is the sanity check that the speedup is not coming from
+skipping detections. ncu reported ~95% DRAM throughput and ~6.5% SM throughput for
+`vector_add_float4`, confirming it is memory-bound.
+
+### What is *not* in these results
+
+- `infer.csv` contains **batch 1 only**. The batch 4/8 attempts did not emit rows; no batch-4/8
+  claim is made.
+- `pipeline.csv` and `batching.csv` still say `source=synthetic` — the real-video per-frame
+  numbers are in `results/demo_frame_timings.csv` instead.
+- TensorRT is absent (`ModuleNotFoundError: No module named 'tensorrt'`); ONNX Runtime CUDA
+  is the top rung that actually ran.
+- No mAP, no fine-tuned weights, and no claim about detection quality. The detector is
+  pretrained COCO YOLOv8n on waste imagery.
 
 ---
 
@@ -155,7 +189,7 @@ comes from [`results/summary.md`](results/summary.md), not from expectation:
 | Shared-memory tiling | reuse a tile 32× so GEMM turns compute-bound | 732 vs 667 GFLOP/s; cuBLAS still 6130 | `matmul.cu` |
 | Pinned memory | lets the copy engine DMA without a bounce buffer | 11.10 ms vs 31.16 ms pageable (2.81×) | `streams.cu` |
 | Multiple streams | copy of one chunk overlaps compute of another | 7.25 ms vs 11.10 ms pinned (1.53× more) | `streams.cu` |
-| Kernel fusion | one pass instead of five over intermediates | **withdrawn pending fair re-measurement** — the old 84× compared a GPU-kernel-only time against an un-uploaded CPU time, and that OpenCV row had `max_abs_err=2.1`. Task 1 now adds `kernel_only`, `h2d_plus_kernel`, `end_to_end`, `opencv_cpu` (upload included) and `torch_gpu_ops`, all gated against one reference. | `preprocess.cu` |
+| Kernel fusion | one pass instead of five over intermediates | fair re-measurement: end-to-end 1.378 ms vs OpenCV+upload 6.283 ms (**4.56×**); kernel-only 0.049 ms; 0.605 ms with pinned H2D. The old 84× is withdrawn — it compared unequal scopes and that OpenCV row had `max_abs_err=2.1`. | `preprocess.cu` |
 | FP16 | tensor cores are ~8× FP32 *peak* on paper | **slower**: 10.030 vs 8.079 ms at batch 1 | `infer_bench.py` |
 | ONNX Runtime CUDA | graph optimisation + tuned kernels | 7.916 ms, 1.02× over eager FP32 | `infer_bench.py` |
 | Batching / pipeline | amortise launches, overlap copy with infer | serial holds ~106 FPS/feed; pipelined **regresses** at 2/4 feeds | `pipeline.py` |

@@ -1,4 +1,4 @@
 bench,variant,size,size_unit,time_ms_mean,time_ms_std,throughput,throughput_unit,extra,device,arch
-pipeline,serial,300,frames,2775.015566,287.368988,108.1075,FPS,"source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true",Tesla T4,sm_75
-pipeline,pipelined_2stream,300,frames,2691.172301,216.502438,111.4756,FPS,"source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true",Tesla T4,sm_75
-pipeline,pipelined_3stream,300,frames,2696.077574,275.491767,111.2728,FPS,"source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true",Tesla T4,sm_75
+pipeline,serial,300,frames,2868.067655,371.651593,104.6000,FPS,"source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true",Tesla T4,sm_75
+pipeline,pipelined_2stream,300,frames,2748.597390,254.101454,109.1466,FPS,"source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true",Tesla T4,sm_75
+pipeline,pipelined_3stream,300,frames,2841.664096,321.907488,105.5719,FPS,"source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true",Tesla T4,sm_75

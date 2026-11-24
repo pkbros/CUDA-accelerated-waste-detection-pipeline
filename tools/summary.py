@@ -132,6 +132,10 @@ def load_all() -> dict[str, list[dict[str, str]]]:
     if not RESULTS.exists():
         return by_bench
     for path in sorted(RESULTS.glob("*.csv")):
+        # dataset.csv is an inventory (its device field is the dataset name,
+        # not a GPU). Including it produces a false "mixed GPUs" warning.
+        if path.name == "dataset.csv":
+            continue
         # Nsight writes its own CSVs into results/. ncu instruments kernels and
         # inflates their durations by orders of magnitude (a 1M-element vector
         # add measured 1674 ms under ncu vs ~0.04 ms normally), and nsys reuses

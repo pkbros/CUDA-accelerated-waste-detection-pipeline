@@ -1,6 +1,6 @@
 bench,variant,size,size_unit,time_ms_mean,time_ms_std,throughput,throughput_unit,extra,device,arch
-reduction,cpu_reference,16777216,elements,23.508005,1.380882,2.8547,GB/s,result=24117248.000000 err=0 rel=0 ok=1 bw=host_wall_clock,Tesla T4,sm_75
-reduction,naive_global,16777216,elements,21.689841,0.194745,3.0940,GB/s,result=24117248.000000 err=0 rel=0 ok=1 tol=0.0001 bw=effective,Tesla T4,sm_75
-reduction,shared_mem,16777216,elements,0.290467,0.002792,231.0382,GB/s,result=24117248.000000 err=0 rel=0 ok=1 tol=0.0001 bw=effective_multi_stage,Tesla T4,sm_75
-reduction,warp_shuffle,16777216,elements,0.295000,0.002104,227.4879,GB/s,result=24117248.000000 err=0 rel=0 ok=1 tol=0.0001 bw=effective_multi_stage,Tesla T4,sm_75
-reduction,cub_reference,16777216,elements,0.261441,0.002904,256.6887,GB/s,result=24117248.000000 err=0 rel=0 ok=1 tol=0.0001 bw=effective_device_reduce,Tesla T4,sm_75
+reduction,cpu_reference,16777216,elements,22.244682,0.752282,3.0168,GB/s,result=24117248.000000 err=0 rel=0 ok=1 bw=host_wall_clock,Tesla T4,sm_75
+reduction,naive_global,16777216,elements,21.685227,0.011169,3.0947,GB/s,result=24117248.000000 err=0 rel=0 ok=1 tol=0.0001 bw=effective,Tesla T4,sm_75
+reduction,shared_mem,16777216,elements,0.288632,0.002648,232.5069,GB/s,result=24117248.000000 err=0 rel=0 ok=1 tol=0.0001 bw=effective_multi_stage,Tesla T4,sm_75
+reduction,warp_shuffle,16777216,elements,0.291619,0.002367,230.1255,GB/s,result=24117248.000000 err=0 rel=0 ok=1 tol=0.0001 bw=effective_multi_stage,Tesla T4,sm_75
+reduction,cub_reference,16777216,elements,0.255976,0.001881,262.1682,GB/s,result=24117248.000000 err=0 rel=0 ok=1 tol=0.0001 bw=effective_device_reduce,Tesla T4,sm_75

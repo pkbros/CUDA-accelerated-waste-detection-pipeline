@@ -4,6 +4,6 @@
   "arch": "sm_75",
   "multiprocessors": 40,
   "global_mem_gib": 14.56,
-  "torch": "2.11.0+cu130",
+  "torch": "2.14.1+cu130",
   "cuda_runtime": "13.0"
 }

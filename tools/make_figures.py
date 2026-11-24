@@ -428,6 +428,12 @@ def panel_preprocess(ax: plt.Axes, rows: list[dict[str, str]]) -> list[str] | No
         verdict = "current fair result"
         chosen = [r for r in rows if r.get("variant") in FAIR_SCOPES]
         color = "#222222"
+        # The CSV also contains the superseded first-run rows. Prefer a row
+        # whose `extra` records a timing scope; otherwise we would plot the old
+        # 3.89 ms opencv_cpu (no upload) as if it were the fair 6.28 ms row.
+        scoped = [r for r in chosen if "timing=" in (r.get("extra") or "")]
+        if scoped:
+            chosen = scoped
 
     seen: set[str] = set()
     picks: list[tuple[str, float, float]] = []

@@ -1,5 +1,11 @@
 bench,variant,size,size_unit,time_ms_mean,time_ms_std,throughput,throughput_unit,extra,device,arch
-preprocess,opencv_cpu,409600,px,3.889056,0.178543,105.3212,MP/s,"max_abs_err=2.117904e+00,tol=informational,ok=true",Tesla T4,sm_75
-preprocess,numpy_cpu,409600,px,84.900563,17.153803,4.8245,MP/s,"max_abs_err=0.000000e+00,tol=informational,ok=true",Tesla T4,sm_75
-preprocess,cuda_fused_f32,409600,px,0.046156,0.007636,8874.2218,MP/s,"max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true",Tesla T4,sm_75
-preprocess,cuda_fused_f16,409600,px,0.039369,0.001879,10404.1357,MP/s,"max_abs_err=9.744167e-04,tol=atol=0.002,ok=true",Tesla T4,sm_75
+preprocess,kernel_only,409600,px,0.049393,0.004549,8292.5992,MP/s,"max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=events:GPU-kernel-only,src=1920x1080",Tesla T4,sm_75
+preprocess,h2d_plus_kernel,409600,px,0.604520,0.012323,677.5629,MP/s,"max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=events:pinned-H2D+kernel,src=1920x1080",Tesla T4,sm_75
+preprocess,end_to_end,409600,px,1.377809,0.041527,297.2835,MP/s,"max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=wall:host-frame-to-ready-GPU-tensor,src=1920x1080",Tesla T4,sm_75
+preprocess,opencv_cpu,409600,px,6.283208,0.510523,65.1896,MP/s,"max_abs_err=4.768372e-07,tol=atol=0.01,ok=true,timing=wall:cv2-CPU+pageable-H2D,src=1920x1080",Tesla T4,sm_75
+preprocess,torch_gpu_ops,409600,px,0.673330,0.011976,608.3199,MP/s,"max_abs_err=7.152557e-07,tol=atol=0.002,ok=true,timing=events:plain-torch-GPU-ops,src=1920x1080",Tesla T4,sm_75
+preprocess,kernel_only,409600,px,0.036954,0.004035,11084.0744,MP/s,"max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=events:GPU-kernel-only,src=640x480",Tesla T4,sm_75
+preprocess,h2d_plus_kernel,409600,px,0.126075,0.008698,3248.8505,MP/s,"max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=events:pinned-H2D+kernel,src=640x480",Tesla T4,sm_75
+preprocess,end_to_end,409600,px,0.361136,0.064718,1134.1996,MP/s,"max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=wall:host-frame-to-ready-GPU-tensor,src=640x480",Tesla T4,sm_75
+preprocess,opencv_cpu,409600,px,5.347168,0.369128,76.6013,MP/s,"max_abs_err=4.768372e-07,tol=atol=0.01,ok=true,timing=wall:cv2-CPU+pageable-H2D,src=640x480",Tesla T4,sm_75
+preprocess,torch_gpu_ops,409600,px,0.327138,0.029030,1252.0719,MP/s,"max_abs_err=7.152557e-07,tol=atol=0.002,ok=true,timing=events:plain-torch-GPU-ops,src=640x480",Tesla T4,sm_75

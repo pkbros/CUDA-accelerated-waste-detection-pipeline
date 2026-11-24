@@ -407,3 +407,42 @@ the kernel is memory-bound: removing barriers does not make DRAM deliver bytes f
 ~99–101%, 18 registers per thread. Only ~7% of the compute pipeline is in use while ~95% of
 memory is — there is nothing left to optimise except moving fewer bytes. Its CUDA-event
 throughput was 248.80 GB/s (float4) and 262.32 GB/s (scalar), both near the HBM ceiling.
+
+
+---
+
+## 11. Real-data run (T4, 2026-11-24)
+
+The first CSVs were synthetic. A later run used 1,415 train / 300 val ZeroWaste conveyor
+frames (pretrained COCO YOLOv8n, no fine-tuning) and produced the following measured numbers.
+
+**Fair preprocess scopes** (1920x1080 input -> 640 output, 200 iterations each, all gated
+against the same CPU reference, `max_abs_err=4.77e-7`):
+
+| Scope | mean ms | what it includes |
+|---|---|---|
+| `kernel_only` | 0.0494 | CUDA events; input already on GPU |
+| `h2d_plus_kernel` | 0.6045 | events; pinned host frame + async H2D + kernel |
+| `end_to_end` | 1.3778 | wall clock; host uint8 frame to ready GPU tensor |
+| `opencv_cpu` | 6.2832 | wall clock; cv2 + pageable `.cuda()` upload + sync |
+| `torch_gpu_ops` | 0.6733 | events; plain `F.interpolate`/flip/div on GPU |
+
+The honest speedup is **4.56x end-to-end**, not 84x. The earlier OpenCV row reported
+`max_abs_err=2.117904` because of padding and normalisation-order bugs; the fixed baseline
+matches the reference to `4.77e-7`. At 640x480 the same five scopes are 0.037 / 0.126 / 0.361 /
+5.347 / 0.327 ms.
+
+**Per-frame demo** (`results/demo_frame_timings.csv`, 120 real val frames, same model both
+pipelines): baseline 63.9 +/- 10.9 FPS, optimized 93.0 +/- 14.9 FPS = **1.46x**. Decomposed:
+decode 1.656 ms in both, preprocess 4.280 -> 0.441 ms (**9.7x**), inference 11.054 -> 9.044 ms.
+Mean detections were identical at 1.125 per frame (76/120 frames had boxes), so the speedup
+is not coming from skipping work.
+
+**Gaps, stated plainly.** `infer.csv` has only batch 1 rows: the batch 4 and 8 attempts did
+not emit rows, so no batch-scaling claim is made. `pipeline.csv` and `batching.csv` still
+contain the earlier synthetic rows (`source=synthetic`); the real-video measurements live in
+`demo_frame_timings.csv`. TensorRT was unavailable (`ModuleNotFoundError`). No mAP exists.
+
+**ncu** on this image did work: `vector_add_float4` showed DRAM throughput 95.38%, SM
+throughput 6.47%, 18 registers/thread. Its inflated kernel durations were excluded from the
+summary tables by `tools/summary.py`.

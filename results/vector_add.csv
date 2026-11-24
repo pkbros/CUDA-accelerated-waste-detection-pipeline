@@ -1,4 +1,4 @@
 bench,variant,size,size_unit,time_ms_mean,time_ms_std,throughput,throughput_unit,extra,device,arch
-vector_add,cpu_reference,50000000,elements,52.467662,1.248106,11.4356,GB/s,reference=cpu_single_thread,Tesla T4,sm_75
-vector_add,gpu_scalar,50000000,elements,2.287297,0.002658,262.3184,GB/s,"max_abs_err=0, ok=true",Tesla T4,sm_75
-vector_add,gpu_float4,50000000,elements,2.411597,0.003843,248.7977,GB/s,"max_abs_err=0, ok=true",Tesla T4,sm_75
+vector_add,cpu_reference,50000000,elements,52.759180,1.451552,11.3724,GB/s,reference=cpu_single_thread,Tesla T4,sm_75
+vector_add,gpu_scalar,50000000,elements,2.288237,0.004035,262.2106,GB/s,"max_abs_err=0, ok=true",Tesla T4,sm_75
+vector_add,gpu_float4,50000000,elements,2.413325,0.002819,248.6197,GB/s,"max_abs_err=0, ok=true",Tesla T4,sm_75
