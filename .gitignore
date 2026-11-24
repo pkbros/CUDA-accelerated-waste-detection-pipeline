@@ -1,0 +1,21 @@
+# Build output
+build/
+*.o
+*.so
+*.obj
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Downloaded data / weights (large, and licensed separately)
+data/
+models/*.pt
+models/*.onnx
+models/*.engine
+
+# Nsight reports are multi-MB binaries; keep the generated stats text instead.
+reports/*.nsys-rep
+reports/*.ncu-rep
+reports/*.sqlite

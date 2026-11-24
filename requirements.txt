@@ -1,0 +1,12 @@
+# Phase B runtime. Phase A needs only nvcc (already in the Colab image).
+#
+# Colab note: torch, torchvision and opencv are preinstalled. Installing
+# onnxruntime-gpu / tensorrt can pull CUDA packages that fight with the
+# preinstalled torch, so those are tried last and their failure is recorded
+# rather than hidden. Pins are deliberately loose; the notebook records what it
+# actually got.
+ultralytics>=8.3
+onnx>=1.16
+onnxruntime-gpu>=1.19
+# Stretch goal, installed in its own notebook cell because it can break torch:
+#   tensorrt>=10.0
