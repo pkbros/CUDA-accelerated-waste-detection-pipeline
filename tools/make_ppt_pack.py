@@ -26,7 +26,9 @@ import sys
 sys.dont_write_bytecode = True
 
 import csv
+import os
 import random
+import time
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -160,7 +162,7 @@ DESCRIPTIONS = {
     "08_memory_bound_and_streams": "Shows Nsight Compute DRAM versus SM utilisation and measured single-to-multi-stream transfer times.",
     "09_multi_feed": "Compares serial and pipelined FPS per feed at one, two and four feeds.",
     "10_what_did_not_work": "Collects the three measured regressions: float4 loads, FP16 inference and multi-feed pipelining.",
-    "11_detection_quality": "Shows six fixed-seed validation frames with their labelled boxes and the fine-tune status.",
+    "11_detection_quality": "Shows six fixed-seed validation frames with thin outlined ground-truth boxes and the fine-tune status.",
 }
 
 SOURCES: dict[str, list[str]] = {}
@@ -283,8 +285,20 @@ class Canvas:
         self.fig.text(0.5, 0.012, footer, ha="center", va="bottom",
                       fontsize=FOOTER, color=MUTED)
         image_path = OUT / f"{self.stem}.png"
-        self.fig.savefig(image_path, dpi=DPI, facecolor="white")
+        # Write to a fresh temp file first: on Windows an image viewer can hold
+        # the previous PNG open, which makes a direct overwrite fail with
+        # WinError 22.  Retry the atomic replace briefly instead of losing data.
+        temp_path = OUT / f".{self.stem}.{os.getpid()}.tmp.png"
+        self.fig.savefig(temp_path, dpi=DPI, facecolor="white")
         plt.close(self.fig)
+        for attempt in range(20):
+            try:
+                temp_path.replace(image_path)
+                break
+            except OSError:
+                if attempt == 19:
+                    raise
+                time.sleep(0.15)
         with Image.open(image_path) as im:
             size = im.size
             im.verify()
@@ -421,6 +435,7 @@ def draw_frame_panel(
     cls_names: dict[int, str],
     *,
     show_score: bool = True,
+    draw_labels: bool = True,
 ) -> None:
     """Contain-fit one frame and draw thin boxes with large class labels."""
     x0, y0, w, h = ax.get_position().bounds
@@ -439,7 +454,7 @@ def draw_frame_panel(
     def sy(value: float) -> float:
         return yhi - max(0.0, min(ih, value)) * scale / FIG_H
 
-    for box in boxes:
+    for box_index, box in enumerate(boxes):
         x1, x2 = sorted((sx(box.x1), sx(box.x2)))
         top, bottom = sorted((sy(box.y1), sy(box.y2)))
         if x2 - x1 < 0.001 or bottom - top < 0.001:
@@ -448,14 +463,16 @@ def draw_frame_panel(
             Rectangle((x1, bottom), x2 - x1, top - bottom, transform=ax.transData,
                       fill=False, edgecolor=color, linewidth=2.2)
         )
-        name = cls_names.get(box.cls)
-        base = name or f"cls {box.cls}"
-        label = f"{base} {box.score:.2f}" if show_score else base
-        ax.text(
-            x1, top + 0.006, label, fontsize=BOX_LABEL, color="white",
-            va="bottom", ha="left",
-            bbox=dict(facecolor=color, edgecolor="none", pad=1.2),
-        )
+        if draw_labels:
+            name = cls_names.get(box.cls)
+            base = name or f"cls {box.cls}"
+            label = f"{base} {box.score:.2f}" if show_score else base
+            label_y = top + 0.006 + (0.034 if box_index % 2 else 0.0)
+            ax.text(
+                x1, label_y, label, fontsize=BOX_LABEL, color="white",
+                va="bottom", ha="left",
+                bbox=dict(facecolor=color, edgecolor="none", pad=1.2),
+            )
 
 
 # --------------------------------------------------------------------------- #
@@ -577,10 +594,16 @@ def build_02(data: PPTData, chosen: list[FrameTiming], brightness: list[float],
                     source="demo_frame_timings.csv")
             c.value(f"{prefix} boxes drawn", len(boxes), unit="boxes", panel=label,
                     source="demo_frame_timings.csv")
-        note = "selection: >=3 baseline detections and brightness>40, spread across the clip"
+        note = "selection: bright frames with multiple detections, spread across the clip"
         if relaxed:
-            note = "selection relaxed to >=1 detection: no frame met >=3 detections"
-        c.text(0.03, 0.115, note + " | thin outlines only; footage is not covered",
+            note = "selection relaxed: no frame met the multi-detection rule"
+        c.text(0.03, 0.122, note + " | thin outlines only; footage is not covered",
+               size=MINI, color=MUTED)
+        # Say plainly that these are COCO class names from the pretrained model,
+        # so a waste-detection claim is never implied by labels like 'banana'.
+        c.text(0.03, 0.088,
+               "labels are pretrained COCO classes (e.g. tie, banana, person), "
+               "not waste classes",
                size=MINI, color=MUTED)
         c.value("selection", None, panel="selection", source="demo_frame_timings.csv", note=note)
         c.finish(footer_for(data, stem), "data-backed")
@@ -760,8 +783,7 @@ def build_05(data: PPTData) -> None:
     ymax = max(real) * 1.28 if real else 1.0
     y0, y1 = 0.22, 0.74
     c.line(0.075, y0, 0.965, y0, color=INK, lw=2.0)
-    c.text(0.04, y0, "0", size=MINI, ha="right")
-    c.text(0.04, y1, fmt(ymax, 1), size=MINI, ha="right")
+    c.text(0.065, y0, "0", size=MINI, ha="right")
     c.text(0.09, (y0 + y1) / 2, "ms/img", size=MINI, ha="right", color=MUTED)
 
     for gi, backend in enumerate(backends):
@@ -817,8 +839,7 @@ def build_06(data: PPTData) -> None:
     y0, y1 = 0.27, 0.77
     maxv = max((scopes[n].time_ms_mean for n in present), default=1.0) * 1.22
     c.line(0.075, y0, 0.965, y0, color=INK, lw=2.0)
-    c.text(0.045, y1, fmt(maxv, 1), size=MINI, ha="right")
-    c.text(0.045, y0, "0", size=MINI, ha="right")
+    c.text(0.065, y0, "0", size=MINI, ha="right")
     for i, name in enumerate(present):
         row = scopes[name]
         bx = 0.14 + i * 0.165
@@ -1153,7 +1174,9 @@ def build_10(data: PPTData) -> None:
 
 def build_11(data: PPTData) -> None:
     stem = "11_detection_quality"
-    c = Canvas(stem, ["dataset.csv", "waste.yaml", "finetune.csv", "device.json"])
+    sources = ["dataset.csv", "waste.yaml",
+               "finetune.csv" if data.finetune else "finetune.csv (absent)", "device.json"]
+    c = Canvas(stem, sources)
     info = dataset_info(data)
     names = yolo_classes()
     images = bright_val_images(val_images())
@@ -1222,7 +1245,8 @@ def build_11(data: PPTData) -> None:
             Box(b[0] * iw, b[1] * ih, b[2] * iw, b[3] * ih, b[4], 0.0)
             for b in boxes
         ]
-        draw_frame_panel(c, ax, rgb, val_box_objects, INK, names, show_score=False)
+        draw_frame_panel(c, ax, rgb, val_box_objects, INK, names,
+                         show_score=False, draw_labels=False)
         # The label helper prints a score for per-frame detections; val labels
         # have none, so overlay a corrected class-only label below.
         c.value(f"val frame {i + 1}", path.name, source="waste.yaml", note="fixed seed 0")

@@ -17,4 +17,4 @@ OPTIMIZED,optimized total,11.733000,ms,demo_frame_timings.csv,
 OPTIMIZED,optimized rolling FPS,85.229000,FPS,demo_frame_timings.csv,
 OPTIMIZED,optimized detections,4,boxes,demo_frame_timings.csv,
 OPTIMIZED,optimized boxes drawn,4,boxes,demo_frame_timings.csv,
-selection,selection,,,demo_frame_timings.csv,"selection: >=3 baseline detections and brightness>40, spread across the clip"
+selection,selection,,,demo_frame_timings.csv,"selection: bright frames with multiple detections, spread across the clip"

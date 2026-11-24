@@ -16,7 +16,7 @@ are labelled `NOT RUN`. The GPU in every footer comes from `results/device.json`
 | [`08_memory_bound_and_streams.png`](08_memory_bound_and_streams.png) | Shows Nsight Compute DRAM versus SM utilisation and measured single-to-multi-stream transfer times. | `profiling_ncu.csv`, `streams.csv`, `device.json` |
 | [`09_multi_feed.png`](09_multi_feed.png) | Compares serial and pipelined FPS per feed at one, two and four feeds. | `batching.csv`, `device.json` |
 | [`10_what_did_not_work.png`](10_what_did_not_work.png) | Collects the three measured regressions: float4 loads, FP16 inference and multi-feed pipelining. | `vector_add.csv`, `infer.csv`, `batching.csv`, `device.json` |
-| [`11_detection_quality.png`](11_detection_quality.png) | Shows six fixed-seed validation frames with their labelled boxes and the fine-tune status. | `dataset.csv`, `waste.yaml`, `finetune.csv`, `device.json` |
+| [`11_detection_quality.png`](11_detection_quality.png) | Shows six fixed-seed validation frames with thin outlined ground-truth boxes and the fine-tune status. | `dataset.csv`, `waste.yaml`, `finetune.csv (absent)`, `device.json` |
 
 ## Generation notes
 
