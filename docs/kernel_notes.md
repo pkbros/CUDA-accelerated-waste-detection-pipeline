@@ -49,7 +49,7 @@ how efficiently bytes are requested.
 |---|---|---|
 | `cpu_reference` | one core, scalar loop | Not a fair fight, and not meant to be: it is the correctness oracle. Single-core DRAM bandwidth is a fraction of the GPU's, and the loop cannot hide latency. |
 | `gpu_scalar` | 1 thread per element, 32-bit accesses | Full parallelism, but each thread issues three 32-bit transactions. A warp requests 32 × 4 B = 128 B per array, which is exactly one 128 B cache line — efficient, but it takes three instructions per element to do it. |
-| `gpu_float4` | 1 thread per 4 elements, `float4` (128-bit) accesses | A warp now requests 4 × 128 B per array in one instruction per array. Fewer instructions per byte, and more bytes in flight per thread (memory-level parallelism), which is what actually saturates HBM. Expect it to approach the bandwidth ceiling; it cannot exceed it. |
+| `gpu_float4` | 1 thread per 4 elements, `float4` (128-bit) accesses | A warp now requests 4 × 128 B per array in one instruction per array. Fewer instructions per byte, and more bytes in flight per thread, which is what should saturate HBM. **Measured result: no win** — 2.412 ms vs 2.287 ms for scalar, both at ~250–260 GB/s. Once the ceiling is reached, issuing fewer instructions does not make the bytes arrive faster. This is a result, not a failed optimisation: it tells us the kernel is done. |
 
 **The honest ceiling.** If the measured GB/s lands near the card's spec bandwidth, the kernel is
 done — there is nothing left to optimise, and any further "speedup" would have to come from
@@ -321,14 +321,45 @@ how many cameras one GPU can serve.
 
 ---
 
-## 8. Profiling, and what it could not do
+## 8. Profiling, and what it found
 
 - **Nsight Systems (`nsys`)** works on Colab. The timeline shows copy and kernel overlap
   directly (which is how the streams claim is checked, rather than trusted), and the
   `cuda_gpu_kern_sum` table gives per-kernel duration. Stats text is saved under `results/`;
-  the `.nsys-rep` files are downloaded and opened in the GUI locally.
-- **Nsight Compute (`ncu`)** needs permission to read GPU performance counters, which requires
-  privileges a Colab runtime does not grant; it fails with `ERR_NVGPUCTRPERM`. So achieved
-  occupancy, memory-throughput percentages and stall reasons are **not** available here. The
-  substitute is CUDA event timings plus the nsys kernel table, and the limitation is recorded in
-  `results/failures.md` with the actual error rather than quietly omitted.
+  the `.nsys-rep` files are downloaded and opened in the GUI locally. Its kernel table
+  independently agrees with the CUDA-event measurements: `vector_add_scalar` 925 µs and
+  `vector_add_float4` 953 µs at N=20M.
+- **Nsight Compute (`ncu`) unexpectedly worked on this Colab runtime.** Earlier Colab images
+  refuse counter access with `ERR_NVGPUCTRPERM`; this one did not. It reported, for
+  `vector_add_float4`: DRAM throughput ~95–96%, achieved occupancy ~99–101%, SM throughput
+  ~6.7%, 18 registers/thread, and the solver's own note that >80% of a bottleneck unit is in
+  use. That is direct evidence for the memory-bound claim in §1. **Its durations are not
+  results**: instrumenting a 1M-element add made it take 1674 ms. `tools/summary.py` skips
+  every `profiling_*.csv` so those inflated numbers cannot enter a benchmark table.
+
+The earlier assumption that `ncu` would fail was wrong, and the write-up now says what the
+runtime actually did rather than what was expected.
+
+---
+
+## 9. Results that contradicted the plan
+
+Three expectations did not survive contact with the T4. They are kept here because a
+write-up that only reports its successes is not evidence.
+
+**FP16 was slower than FP32.** 10.030 ± 1.057 ms vs 8.079 ± 1.200 ms at batch 1. The ~8×
+FP16 *peak* is a datasheet number for dense GEMM large enough to fill tensor cores. A single
+640×640 YOLOv8n forward at batch 1 is launch- and latency-bound, and `DetectionModel.half()`
+plus the input cast add work that the tensor cores cannot repay. The honest conclusion is
+that FP16 needs larger batches before it pays on this card — not that the kernel is broken.
+
+**`float4` did not beat scalar loads.** Both sit at the memory ceiling (248.80 vs 262.32
+GB/s). Fewer instructions per byte cannot speed up bytes that are already arriving at HBM
+rate. The ncu counters in §8 confirm it: ~95% DRAM throughput, ~6.7% SM throughput.
+
+**The pipelined loop regressed at 2 and 4 feeds.** Serial holds ~105–107 FPS per feed across
+1/2/4; pipelined goes 110 → 72 → 37 FPS per feed. With small synthetic frames the copy stall
+is short, so the per-slot event bookkeeping and pinned-buffer occupancy cost more than the
+overlap saves. The 1.03× gain at 300 single frames is the realistic size of the win here.
+This is why the write-up claims only "copy of frame *k+1* overlaps inference of frame *k*",
+never a 2× pipeline.

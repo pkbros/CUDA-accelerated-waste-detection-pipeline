@@ -81,8 +81,10 @@ TITLES = {
 
 NOTES = {
     "vector_add": (
-        "Memory-bound: 1 add per 12 bytes moved, so the ceiling is the HBM bandwidth, "
-        "not the ALU. The float4 row shows the effect of 128-bit accesses."
+        "Memory-bound: 1 add per 12 bytes moved, so the ceiling is HBM bandwidth. "
+        "Both GPU variants sit at ~250-260 GB/s. Measured here, float4 is slightly "
+        "SLOWER than scalar: at the bandwidth ceiling 128-bit loads buy nothing, "
+        "which is itself the result."
     ),
     "reduction": (
         "The interesting axis is the number of global-memory round trips and "
@@ -103,8 +105,9 @@ NOTES = {
         "launch overhead."
     ),
     "infer": (
-        "Latency per image at the stated batch size. T4 has FP16 tensor cores, so the "
-        "FP32 -> FP16 step should be the largest single jump in this table."
+        "Latency per image at the stated batch size. Despite T4 FP16 tensor cores, "
+        "the measured FP16 rung is SLOWER than FP32 at batch 1; batch 1 is "
+        "launch/latency-bound and cannot feed the tensor cores. Reported as measured."
     ),
     "pipeline": (
         "End-to-end throughput, wall clock, including Python overhead. This is the "
@@ -112,8 +115,9 @@ NOTES = {
         "1/latency of any single stage."
     ),
     "batching": (
-        "FPS per feed is the number to read: total FPS divided by feeds. It drops as "
-        "feeds grow once the GPU is saturated."
+        "FPS per feed is the number to read: total FPS divided by feeds. Serial scaling "
+        "holds (~106 FPS/feed at 1/2/4 feeds); the pipelined loop REGRESSES at 2 and 4 "
+        "feeds, where buffer bookkeeping costs more than the copy stall it removes."
     ),
 }
 
@@ -128,6 +132,13 @@ def load_all() -> dict[str, list[dict[str, str]]]:
     if not RESULTS.exists():
         return by_bench
     for path in sorted(RESULTS.glob("*.csv")):
+        # Nsight writes its own CSVs into results/. ncu instruments kernels and
+        # inflates their durations by orders of magnitude (a 1M-element vector
+        # add measured 1674 ms under ncu vs ~0.04 ms normally), and nsys reuses
+        # results/profiling_tmp.csv across runs. Neither is a benchmark result.
+        # They stay on disk as evidence but must never enter a summary table.
+        if path.name.startswith("profiling_"):
+            continue
         try:
             rows = read_rows(path)
         except (OSError, csv.Error) as exc:  # a half-written CSV must not crash the report

@@ -1,0 +1,9 @@
+{
+  "gpu_name": "Tesla T4",
+  "compute_capability": "7.5",
+  "arch": "sm_75",
+  "multiprocessors": 40,
+  "global_mem_gib": 14.56,
+  "torch": "2.11.0+cu130",
+  "cuda_runtime": "13.0"
+}

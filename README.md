@@ -125,22 +125,24 @@ python tools/summary.py
 
 ---
 
-## 6. What each optimisation is, and why it should work
+## 6. What each optimisation was supposed to do, and what happened
 
 Full reasoning, including the parts that turned out to be wrong, is in
-[`docs/kernel_notes.md`](docs/kernel_notes.md). Short version:
+[`docs/kernel_notes.md`](docs/kernel_notes.md). Short version — the "measured" column
+comes from [`results/summary.md`](results/summary.md), not from expectation:
 
-| Technique | Mechanism | Where it shows up |
-|---|---|---|
-| 128-bit vector loads (`float4`) | fewer memory transactions and instructions per element | `vector_add.cu` |
-| Shared-memory reduction | removes a global round trip per tree level | `reduction.cu` |
-| Warp shuffle | removes `__syncthreads()` and shared-memory bank conflicts inside a warp | `reduction.cu` |
-| Shared-memory tiling | turns GEMM from memory-bound into compute-bound by reusing a tile 32× | `matmul.cu` |
-| Pinned memory | lets the copy engine DMA without a bounce buffer | `streams.cu` |
-| Multiple streams | copy of one chunk overlaps compute of another | `streams.cu`, `pipeline.py` |
-| Kernel fusion | one pass over destination pixels instead of five over intermediates | `preprocess.cu` |
-| FP16 | T4's peak FP16 throughput is roughly 8× its FP32 peak (datasheet figure, not measured here) | `infer_bench.py` |
-| Batching | amortises launch overhead, trades latency for throughput | `pipeline.py` |
+| Technique | Mechanism | Measured on this T4 | Where |
+|---|---|---|---|
+| 128-bit loads (`float4`) | fewer memory transactions per element | **no win**: 2.412 ms vs 2.287 ms scalar — both already at ~250–260 GB/s | `vector_add.cu` |
+| Shared-memory reduction | removes a global round trip per tree level | 0.290 ms vs 21.690 ms naive | `reduction.cu` |
+| Warp shuffle | removes intra-warp barriers and shared traffic | 0.295 ms — essentially tied with shared memory (bandwidth floor) | `reduction.cu` |
+| Shared-memory tiling | reuse a tile 32× so GEMM turns compute-bound | 732 vs 667 GFLOP/s; cuBLAS still 6130 | `matmul.cu` |
+| Pinned memory | lets the copy engine DMA without a bounce buffer | 11.10 ms vs 31.16 ms pageable (2.81×) | `streams.cu` |
+| Multiple streams | copy of one chunk overlaps compute of another | 7.25 ms vs 11.10 ms pinned (1.53× more) | `streams.cu` |
+| Kernel fusion | one pass instead of five over intermediates | 0.046 ms vs 3.889 ms OpenCV (84×) | `preprocess.cu` |
+| FP16 | tensor cores are ~8× FP32 *peak* on paper | **slower**: 10.030 vs 8.079 ms at batch 1 | `infer_bench.py` |
+| ONNX Runtime CUDA | graph optimisation + tuned kernels | 7.916 ms, 1.02× over eager FP32 | `infer_bench.py` |
+| Batching / pipeline | amortise launches, overlap copy with infer | serial holds ~106 FPS/feed; pipelined **regresses** at 2/4 feeds | `pipeline.py` |
 
 ---
 
@@ -158,10 +160,15 @@ Full reasoning, including the parts that turned out to be wrong, is in
   whatever box-annotated waste data could be licensed; it is not a trained waste detector.
 - **GEMM stops at tiling.** No register blocking or double buffering, so cuBLAS stays well
   ahead. That gap is reported, not hidden.
-- **The pipelined loop overlaps copies, not inferences.** See §2.
-- **Nsight Compute does not work on Colab** (performance counters need privileges the runtime
-  does not grant), so occupancy and memory-throughput counters come from Nsight Systems'
-  kernel table plus CUDA events instead.
+- **The pipelined loop overlaps copies, not inferences.** See §2. At 2 and 4 feeds the
+  measured pipelined batch loop is *slower* than serial; the buffer bookkeeping costs more
+  than the copy stall it removes on these small tensors.
+- **Nsight Compute did work on this Colab runtime**, contrary to the usual
+  `ERR_NVGPUCTRPERM` limitation. It reported ~95–96% DRAM throughput, ~99–101% achieved
+  occupancy and ~6.7% SM throughput for `vector_add_float4` — direct confirmation that the
+  kernel is memory-bound. Its kernel *durations* are instrumentation-inflated (1674 ms for
+  a 1M-element add) and are deliberately excluded from `summary.md`. That exclusion is
+  enforced in `tools/summary.py` by skipping `profiling_*.csv`.
 
 ---
 
