@@ -35,7 +35,7 @@ def record_failure(stage: str, detail: str) -> None:
     with path.open("a", encoding="utf-8") as fh:
         if new:
             fh.write("# Recorded failures\n\nPrototype run; failures are kept deliberately.\n\n")
-        fh.write(f"- {datetime.date.today()} - {stage}: {detail.strip()[:400]}\n")
+        fh.write(f"- {datetime.date.today()} - {stage}: {detail.strip()[:4000]}\n")
     print(f"[recorded failure] {stage}: {detail.strip()[:200]}", flush=True)
 
 
@@ -71,7 +71,9 @@ def step(name: str, fn) -> bool:
         # render_demo.py exits via SystemExit (e.g. ffmpeg missing). SystemExit
         # is not an Exception, so catching only Exception killed the runner
         # silently and left no trace in failures.md.
-        record_failure(name, repr(exc))
+        import traceback
+
+        record_failure(name, f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}")
         print(f"[failed] {name}: {exc}", flush=True)
         return False
 
@@ -201,15 +203,21 @@ def main() -> int:
         if weights.exists():
             print("fine-tuned weights already present; skipping training")
         else:
-            rc = sh(
+            res = sh(
                 f"python {shlex_quote(PHASE_B / 'finetune.py')} "
                 f"--data {shlex_quote(REPO / 'data/waste.yaml')} "
-                f"--model yolov8n.pt --epochs 30 --imgsz 640 --batch 16 "
+                f"--model models/yolov8n.pt --epochs 30 --imgsz 640 --batch 16 "
                 f"--project {shlex_quote(REPO / 'reports')} --name finetune",
                 check=False,
-            ).returncode
-            if rc != 0:
-                record_failure("fine-tune", f"finetune.py exit {rc}; falling back to COCO")
+            )
+            if res.returncode != 0:
+                # Keep the actual traceback: an exit code alone cannot be
+                # diagnosed after the disposable Colab VM is gone.
+                tail = "\n".join((res.stdout or "").splitlines()[-40:])
+                record_failure(
+                    "fine-tune",
+                    f"finetune.py exit {res.returncode}; falling back to COCO\n{tail}",
+                )
         ok = weights.exists()
         set_finetuned(ok)
         print("finetuned:", ok)

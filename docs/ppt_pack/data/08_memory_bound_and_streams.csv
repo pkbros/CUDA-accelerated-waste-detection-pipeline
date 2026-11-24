@@ -1,9 +1,9 @@
 panel,label,value,unit,source,note
-,ncu DRAM mean,95.384000,% of peak,profiling_ncu.csv,15 passes
+,ncu DRAM mean,95.533333,% of peak,profiling_ncu.csv,15 passes
 ,ncu SM mean,6.470000,% of peak,profiling_ncu.csv,15 passes
 ,ncu pass IDs,"15,16,17,18,19,20,21,22,23,24,25,26,27,28,29",,profiling_ncu.csv,
-,streams sync_pageable,30.373939,ms,streams.csv,throughput=4.4188 GB/s
-,streams sync_pinned,11.952123,ms,streams.csv,throughput=11.2296 GB/s
-,streams streams2_pinned,8.230466,ms,streams.csv,throughput=16.3074 GB/s
-,streams streams3_pinned,8.158906,ms,streams.csv,throughput=16.4505 GB/s
+,streams sync_pageable,31.210410,ms,streams.csv,throughput=4.3004 GB/s
+,streams sync_pinned,11.162245,ms,streams.csv,throughput=12.0243 GB/s
+,streams streams2_pinned,7.467165,ms,streams.csv,throughput=17.9744 GB/s
+,streams streams3_pinned,7.364366,ms,streams.csv,throughput=18.2253 GB/s
 ,transfer size,67108864,bytes,streams.csv,

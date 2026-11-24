@@ -37,7 +37,7 @@ are labelled `NOT RUN`. The GPU in every footer comes from `results/device.json`
 | `02_side_by_side_C.png` | data-backed |
 | `03_latency_breakdown.png` | data-backed |
 | `04_end_to_end_fps.png` | data-backed |
-| `05_inference_ladder.png` | partial: batch 4/8 NOT RUN |
+| `05_inference_ladder.png` | data-backed |
 | `06_preprocess_honest.png` | data-backed |
 | `07_kernels_reduction_matmul.png` | data-backed |
 | `08_memory_bound_and_streams.png` | data-backed |

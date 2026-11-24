@@ -12,9 +12,9 @@ Memory-bound: 1 add per 12 bytes moved, so the ceiling is HBM bandwidth. Both GP
 
 | variant | size | mean ms | std ms | throughput | speedup vs cpu_reference | notes |
 |---|---|---|---|---|---|---|
-| `cpu_reference` | 50000000 elements | 52.759 | 1.452 | 11.37 GB/s | 1.00x | reference=cpu_single_thread |
-| `gpu_float4` | 50000000 elements | 2.413 | 0.003 | 248.62 GB/s | 21.86x | max_abs_err=0, ok=true |
-| `gpu_scalar` | 50000000 elements | 2.288 | 0.004 | 262.21 GB/s | 23.06x | max_abs_err=0, ok=true |
+| `cpu_reference` | 50000000 elements | 53.307 | 1.587 | 11.26 GB/s | 1.00x | reference=cpu_single_thread |
+| `gpu_float4` | 50000000 elements | 2.401 | 0.003 | 249.86 GB/s | 22.20x | max_abs_err=0, ok=true |
+| `gpu_scalar` | 50000000 elements | 2.288 | 0.002 | 262.29 GB/s | 23.30x | max_abs_err=0, ok=true |
 
 ## 2. Parallel reduction (naive / shared / warp shuffle)
 
@@ -22,11 +22,11 @@ The interesting axis is the number of global-memory round trips and __syncthread
 
 | variant | size | mean ms | std ms | throughput | speedup vs cpu_reference | notes |
 |---|---|---|---|---|---|---|
-| `cpu_reference` | 16777216 elements | 22.245 | 0.752 | 3.02 GB/s | 1.00x | result=24117248.000000 err=0 rel=0 ok=1 bw=host_wall_clock |
-| `naive_global` | 16777216 elements | 21.685 | 0.011 | 3.09 GB/s | 1.03x | result=24117248.000000 err=0 rel=0 ok=1 tol=0.0001 bw=effective |
-| `warp_shuffle` | 16777216 elements | 0.292 | 0.002 | 230.13 GB/s | 76.28x | result=24117248.000000 err=0 rel=0 ok=1 tol=0.0001 bw=effective_multi_stage |
-| `shared_mem` | 16777216 elements | 0.289 | 0.003 | 232.51 GB/s | 77.07x | result=24117248.000000 err=0 rel=0 ok=1 tol=0.0001 bw=effective_multi_stage |
-| `cub_reference` | 16777216 elements | 0.256 | 0.002 | 262.17 GB/s | 86.90x | result=24117248.000000 err=0 rel=0 ok=1 tol=0.0001 bw=effective_device_reduce |
+| `cpu_reference` | 16777216 elements | 22.708 | 0.770 | 2.96 GB/s | 1.00x | result=24117248.000000 err=0 rel=0 ok=1 bw=host_wall_clock |
+| `naive_global` | 16777216 elements | 21.676 | 0.012 | 3.10 GB/s | 1.05x | result=24117248.000000 err=0 rel=0 ok=1 tol=0.0001 bw=effective |
+| `warp_shuffle` | 16777216 elements | 0.293 | 0.002 | 229.12 GB/s | 77.53x | result=24117248.000000 err=0 rel=0 ok=1 tol=0.0001 bw=effective_multi_stage |
+| `shared_mem` | 16777216 elements | 0.290 | 0.003 | 231.66 GB/s | 78.39x | result=24117248.000000 err=0 rel=0 ok=1 tol=0.0001 bw=effective_multi_stage |
+| `cub_reference` | 16777216 elements | 0.258 | 0.002 | 260.06 GB/s | 88.00x | result=24117248.000000 err=0 rel=0 ok=1 tol=0.0001 bw=effective_device_reduce |
 
 ## 3. Matrix multiply (naive / tiled / cuBLAS)
 
@@ -34,13 +34,13 @@ GFLOP/s is the headline. cuBLAS is the honest ceiling; the gap between 'tiled' a
 
 | variant | size | mean ms | std ms | throughput | speedup vs cpu_naive | notes |
 |---|---|---|---|---|---|---|
-| `cpu_naive` | 256 N | 20.709 | 0.306 | 1.62 GFLOPS | 1.00x | reference=CPU (row-major triple loop) |
-| `naive` | 256 N | 0.053 | 0.002 | 631.25 GFLOPS | 389.60x | reference=CPU |
-| `naive` | 1024 N | 3.399 | 0.513 | 631.84 GFLOPS | 6.09x | reference=cuBLAS (CPU not run at this N) |
-| `tiled` | 256 N | 0.045 | 0.003 | 745.95 GFLOPS | 460.39x | reference=CPU |
-| `tiled` | 1024 N | 2.556 | 0.087 | 840.24 GFLOPS | 8.10x | reference=cuBLAS (CPU not run at this N) |
-| `cublas` | 256 N | 0.028 | 0.002 | 1,199 GFLOPS | 739.74x | reference=CPU |
-| `cublas` | 1024 N | 0.353 | 0.003 | 6,081 GFLOPS | 58.64x | reference=cuBLAS (self; oracle for this N) |
+| `cpu_naive` | 256 N | 22.533 | 1.086 | 1.49 GFLOPS | 1.00x | reference=CPU (row-major triple loop) |
+| `naive` | 256 N | 0.053 | 0.001 | 628.30 GFLOPS | 421.93x | reference=CPU |
+| `naive` | 1024 N | 3.263 | 0.301 | 658.13 GFLOPS | 6.91x | reference=cuBLAS (CPU not run at this N) |
+| `tiled` | 256 N | 0.045 | 0.002 | 738.62 GFLOPS | 496.00x | reference=CPU |
+| `tiled` | 1024 N | 2.443 | 0.070 | 879.05 GFLOPS | 9.22x | reference=cuBLAS (CPU not run at this N) |
+| `cublas` | 256 N | 0.032 | 0.003 | 1,049 GFLOPS | 704.22x | reference=CPU |
+| `cublas` | 1024 N | 0.371 | 0.014 | 5,783 GFLOPS | 60.68x | reference=cuBLAS (self; oracle for this N) |
 
 ## 4. Streams and pinned memory (copy/kernel overlap)
 
@@ -48,10 +48,10 @@ Pinning alone helps; overlapping needs both pinned buffers and more than one str
 
 | variant | size | mean ms | std ms | throughput | speedup vs sync_pageable | notes |
 |---|---|---|---|---|---|---|
-| `sync_pageable` | 67108864 bytes | 30.374 | 0.915 | 4.42 GB/s | 1.00x | ok=1,speedup=1.00x |
-| `sync_pinned` | 67108864 bytes | 11.952 | 0.222 | 11.23 GB/s | 2.54x | ok=1,speedup=2.54x |
-| `streams2_pinned` | 67108864 bytes | 8.230 | 0.030 | 16.31 GB/s | 3.69x | ok=1,speedup=3.69x |
-| `streams3_pinned` | 67108864 bytes | 8.159 | 0.042 | 16.45 GB/s | 3.72x | ok=1,speedup=3.72x |
+| `sync_pageable` | 67108864 bytes | 31.210 | 0.777 | 4.30 GB/s | 1.00x | ok=1,speedup=1.00x |
+| `sync_pinned` | 67108864 bytes | 11.162 | 0.013 | 12.02 GB/s | 2.80x | ok=1,speedup=2.80x |
+| `streams2_pinned` | 67108864 bytes | 7.467 | 0.065 | 17.97 GB/s | 4.18x | ok=1,speedup=4.18x |
+| `streams3_pinned` | 67108864 bytes | 7.364 | 0.017 | 18.23 GB/s | 4.24x | ok=1,speedup=4.24x |
 
 ## 5. Fused preprocess kernel vs CPU
 
@@ -59,16 +59,16 @@ Compare against OpenCV on the CPU as the realistic baseline. The GPU column is o
 
 | variant | size | mean ms | std ms | throughput | speedup vs opencv_cpu | notes |
 |---|---|---|---|---|---|---|
-| `opencv_cpu` | 409600 px | 6.283 | 0.511 | 65.19 MP/s | 1.00x | max_abs_err=4.768372e-07,tol=atol=0.01,ok=true,timing=wall:cv2-CPU+pageable-H2D,src=1920x1080 |
-| `opencv_cpu` | 409600 px | 5.347 | 0.369 | 76.60 MP/s | 1.18x | max_abs_err=4.768372e-07,tol=atol=0.01,ok=true,timing=wall:cv2-CPU+pageable-H2D,src=640x480 |
-| `end_to_end` | 409600 px | 1.378 | 0.042 | 297.28 MP/s | 4.56x | max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=wall:host-frame-to-ready-GPU-tensor,src=1920x1080 |
-| `torch_gpu_ops` | 409600 px | 0.673 | 0.012 | 608.32 MP/s | 9.33x | max_abs_err=7.152557e-07,tol=atol=0.002,ok=true,timing=events:plain-torch-GPU-ops,src=1920x1080 |
-| `h2d_plus_kernel` | 409600 px | 0.605 | 0.012 | 677.56 MP/s | 10.39x | max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=events:pinned-H2D+kernel,src=1920x1080 |
-| `end_to_end` | 409600 px | 0.361 | 0.065 | 1,134 MP/s | 17.40x | max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=wall:host-frame-to-ready-GPU-tensor,src=640x480 |
-| `torch_gpu_ops` | 409600 px | 0.327 | 0.029 | 1,252 MP/s | 19.21x | max_abs_err=7.152557e-07,tol=atol=0.002,ok=true,timing=events:plain-torch-GPU-ops,src=640x480 |
-| `h2d_plus_kernel` | 409600 px | 0.126 | 0.009 | 3,249 MP/s | 49.84x | max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=events:pinned-H2D+kernel,src=640x480 |
-| `kernel_only` | 409600 px | 0.049 | 0.005 | 8,293 MP/s | 127.21x | max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=events:GPU-kernel-only,src=1920x1080 |
-| `kernel_only` | 409600 px | 0.037 | 0.004 | 11,084 MP/s | 170.03x | max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=events:GPU-kernel-only,src=640x480 |
+| `opencv_cpu` | 409600 px | 7.940 | 0.668 | 51.59 MP/s | 1.00x | max_abs_err=4.768372e-07,tol=atol=0.01,ok=true,timing=wall:cv2-CPU+pageable-H2D,src=1920x1080,finetuned=false |
+| `opencv_cpu` | 409600 px | 5.512 | 0.350 | 74.31 MP/s | 1.44x | max_abs_err=4.768372e-07,tol=atol=0.01,ok=true,timing=wall:cv2-CPU+pageable-H2D,src=640x480,finetuned=false |
+| `end_to_end` | 409600 px | 1.416 | 0.113 | 289.22 MP/s | 5.61x | max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=wall:host-frame-to-ready-GPU-tensor,src=1920x1080,finetuned=false |
+| `torch_gpu_ops` | 409600 px | 0.683 | 0.019 | 600.12 MP/s | 11.63x | max_abs_err=7.152557e-07,tol=atol=0.002,ok=true,timing=events:plain-torch-GPU-ops,src=1920x1080,finetuned=false |
+| `h2d_plus_kernel` | 409600 px | 0.562 | 0.005 | 728.82 MP/s | 14.13x | max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=events:pinned-H2D+kernel,src=1920x1080,finetuned=false |
+| `end_to_end` | 409600 px | 0.340 | 0.024 | 1,203 MP/s | 23.33x | max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=wall:host-frame-to-ready-GPU-tensor,src=640x480,finetuned=false |
+| `torch_gpu_ops` | 409600 px | 0.338 | 0.024 | 1,212 MP/s | 23.50x | max_abs_err=7.152557e-07,tol=atol=0.002,ok=true,timing=events:plain-torch-GPU-ops,src=640x480,finetuned=false |
+| `h2d_plus_kernel` | 409600 px | 0.129 | 0.005 | 3,188 MP/s | 61.79x | max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=events:pinned-H2D+kernel,src=640x480,finetuned=false |
+| `kernel_only` | 409600 px | 0.052 | 0.007 | 7,882 MP/s | 152.79x | max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=events:GPU-kernel-only,src=1920x1080,finetuned=false |
+| `kernel_only` | 409600 px | 0.037 | 0.005 | 11,161 MP/s | 216.35x | max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=events:GPU-kernel-only,src=640x480,finetuned=false |
 
 ## 6. Inference ladder
 
@@ -76,9 +76,13 @@ Latency per image at the stated batch size. Despite T4 FP16 tensor cores, the me
 
 | variant | size | mean ms | std ms | throughput | speedup vs pt_fp32 | notes |
 |---|---|---|---|---|---|---|
-| `pt_fp16` | 1 images | 32.076 | 17.901 | 31.18 FPS | 0.29x | precision=fp16; decode+NMS=yes (ultralytics.utils.nms.non_max_suppression); D2H=included (detach().cpu()); output=list[B=1] of NoneType; input=NCHW float32 640px batch=1; fps_basis=per-forward |
-| `ort_cuda_fp32` | 1 images | 10.260 | 5.497 | 97.47 FPS | 0.92x | precision=fp32; decode+NMS=yes (ultralytics.utils.nms.non_max_suppression); D2H=included (IOBinding CUDA input + copy_outputs_to_cpu, then H2D for NMS); stream=ORT default; copy_outputs_to_cpu syncs before stop event; output=list[B=1] of NoneType; input=NCHW float32 640px batch=1; fps_basis=per-forward |
-| `pt_fp32` | 1 images | 9.395 | 3.861 | 106.44 FPS | 1.00x | precision=fp32; decode+NMS=yes (ultralytics.utils.nms.non_max_suppression); D2H=included (detach().cpu()); output=list[B=1] of NoneType; input=NCHW float32 640px batch=1; fps_basis=per-forward |
+| `pt_fp32` | 8 images | 39.667 | 19.623 | 25.21 FPS | 0.24x | precision=fp32; decode+NMS=yes (ultralytics.utils.nms.non_max_suppression); D2H=included (detach().cpu()); output=list[B=8] of NoneType; input=NCHW float32 640px batch=8 source=real_frames; fps_basis=per-forward,finetuned=false |
+| `pt_fp32` | 4 images | 18.661 | 5.992 | 53.59 FPS | 0.52x | precision=fp32; decode+NMS=yes (ultralytics.utils.nms.non_max_suppression); D2H=included (detach().cpu()); output=list[B=4] of NoneType; input=NCHW float32 640px batch=4 source=real_frames; fps_basis=per-forward,finetuned=false |
+| `pt_fp16` | 8 images | 16.878 | 2.288 | 59.25 FPS | 0.57x | precision=fp16; decode+NMS=yes (ultralytics.utils.nms.non_max_suppression); D2H=included (detach().cpu()); output=list[B=8] of NoneType; input=NCHW float32 640px batch=8 source=real_frames; fps_basis=per-forward,finetuned=false |
+| `pt_fp16` | 1 images | 10.198 | 4.678 | 98.05 FPS | 0.95x | precision=fp16; decode+NMS=yes (ultralytics.utils.nms.non_max_suppression); D2H=included (detach().cpu()); output=list[B=1] of NoneType; input=NCHW float32 640px batch=1 source=real_frames; fps_basis=per-forward,finetuned=false |
+| `pt_fp16` | 4 images | 10.182 | 1.992 | 98.22 FPS | 0.95x | precision=fp16; decode+NMS=yes (ultralytics.utils.nms.non_max_suppression); D2H=included (detach().cpu()); output=list[B=4] of NoneType; input=NCHW float32 640px batch=4 source=real_frames; fps_basis=per-forward,finetuned=false |
+| `pt_fp32` | 1 images | 9.647 | 3.091 | 103.66 FPS | 1.00x | precision=fp32; decode+NMS=yes (ultralytics.utils.nms.non_max_suppression); D2H=included (detach().cpu()); output=list[B=1] of NoneType; input=NCHW float32 640px batch=1 source=real_frames; fps_basis=per-forward,finetuned=false |
+| `ort_cuda_fp32` | 1 images | 5.609 | 0.518 | 178.28 FPS | 1.72x | precision=fp32; decode+NMS=yes (ultralytics.utils.nms.non_max_suppression); D2H=included (IOBinding CUDA input + copy_outputs_to_cpu, then H2D for NMS); stream=ORT default; copy_outputs_to_cpu syncs before stop event; output=list[B=1] of NoneType; input=NCHW float32 640px batch=1 source=real_frames; fps_basis=per-forward,finetuned=false |
 
 ## 7. Serial vs pipelined throughput
 
@@ -86,9 +90,9 @@ End-to-end throughput, wall clock, including Python overhead. This is the number
 
 | variant | size | mean ms | std ms | throughput | speedup vs serial | notes |
 |---|---|---|---|---|---|---|
-| `serial` | 300 frames | 2868.068 | 371.652 | 104.60 FPS | 1.00x | source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true |
-| `pipelined_3stream` | 300 frames | 2841.664 | 321.907 | 105.57 FPS | 1.01x | source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true |
-| `pipelined_2stream` | 300 frames | 2748.597 | 254.101 | 109.15 FPS | 1.04x | source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true |
+| `serial` | 300 frames | 3432.203 | 491.371 | 87.41 FPS | 1.00x | source=real_video,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,finetuned=false |
+| `pipelined_2stream` | 300 frames | 3179.827 | 382.080 | 94.34 FPS | 1.08x | source=real_video,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,finetuned=false |
+| `pipelined_3stream` | 300 frames | 3159.505 | 344.487 | 94.95 FPS | 1.09x | source=real_video,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,finetuned=false |
 
 ## 8. Batching / multiple camera feeds
 
@@ -96,12 +100,12 @@ FPS per feed is the number to read: total FPS divided by feeds. Serial scaling h
 
 | variant | size | mean ms | std ms | throughput | speedup vs serial_batch | notes |
 |---|---|---|---|---|---|---|
-| `serial_batch` | 1 feeds | 3018.700 | 318.252 | 99.38 FPS | 1.00x | source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true,feeds=1,fps_per_feed=99.3805 |
-| `pipelined_batch` | 1 feeds | 2753.370 | 213.509 | 108.96 FPS | 1.10x | source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true,feeds=1,fps_per_feed=108.9574 |
-| `pipelined_batch` | 2 feeds | 3414.686 | 635.459 | 175.71 FPS | 0.88x | source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true,feeds=2,fps_per_feed=87.8558 |
-| `pipelined_batch` | 4 feeds | 5605.078 | 82.837 | 214.09 FPS | 0.54x | source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true,feeds=4,fps_per_feed=53.5229 |
-| `serial_batch` | 2 feeds | 2741.823 | 345.113 | 218.83 FPS | 1.10x | source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true,feeds=2,fps_per_feed=109.4163 |
-| `serial_batch` | 4 feeds | 2814.273 | 260.781 | 426.40 FPS | 1.07x | source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true,feeds=4,fps_per_feed=106.5995 |
+| `pipelined_batch` | 1 feeds | 3370.725 | 418.423 | 89.00 FPS | 0.97x | source=real_video,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,feeds=1,fps_per_feed=89.0016,finetuned=false |
+| `serial_batch` | 1 feeds | 3262.216 | 384.775 | 91.96 FPS | 1.00x | source=real_video,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,feeds=1,fps_per_feed=91.9620,finetuned=false |
+| `pipelined_batch` | 2 feeds | 4459.331 | 441.246 | 134.55 FPS | 0.73x | source=real_video,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,feeds=2,fps_per_feed=67.2747,finetuned=false |
+| `pipelined_batch` | 4 feeds | 7995.082 | 264.430 | 150.09 FPS | 0.41x | source=real_video,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,feeds=4,fps_per_feed=37.5231,finetuned=false |
+| `serial_batch` | 2 feeds | 3280.912 | 232.844 | 182.88 FPS | 0.99x | source=real_video,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,feeds=2,fps_per_feed=91.4380,finetuned=false |
+| `serial_batch` | 4 feeds | 3292.432 | 306.840 | 364.47 FPS | 0.99x | source=real_video,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,feeds=4,fps_per_feed=91.1180,finetuned=false |
 
 ## Reproduce
 

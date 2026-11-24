@@ -1,8 +1,8 @@
 bench,variant,size,size_unit,time_ms_mean,time_ms_std,throughput,throughput_unit,extra,device,arch
-matmul,naive,1024,N,3.398768,0.512682,631.8418,GFLOPS,reference=cuBLAS (CPU not run at this N),Tesla T4,sm_75
-matmul,tiled,1024,N,2.555810,0.086574,840.2362,GFLOPS,reference=cuBLAS (CPU not run at this N),Tesla T4,sm_75
-matmul,cublas,1024,N,0.353173,0.003038,6080.5465,GFLOPS,reference=cuBLAS (self; oracle for this N),Tesla T4,sm_75
-matmul,cpu_naive,256,N,20.709152,0.305585,1.6203,GFLOPS,reference=CPU (row-major triple loop),Tesla T4,sm_75
-matmul,naive,256,N,0.053155,0.001602,631.2540,GFLOPS,reference=CPU,Tesla T4,sm_75
-matmul,tiled,256,N,0.044982,0.002506,745.9458,GFLOPS,reference=CPU,Tesla T4,sm_75
-matmul,cublas,256,N,0.027995,0.001651,1198.5780,GFLOPS,reference=CPU,Tesla T4,sm_75
+matmul,naive,1024,N,3.263014,0.301363,658.1288,GFLOPS,reference=cuBLAS (CPU not run at this N),Tesla T4,sm_75
+matmul,tiled,1024,N,2.442971,0.070354,879.0458,GFLOPS,reference=cuBLAS (CPU not run at this N),Tesla T4,sm_75
+matmul,cublas,1024,N,0.371336,0.013653,5783.1281,GFLOPS,reference=cuBLAS (self; oracle for this N),Tesla T4,sm_75
+matmul,cpu_naive,256,N,22.532995,1.085858,1.4891,GFLOPS,reference=CPU (row-major triple loop),Tesla T4,sm_75
+matmul,naive,256,N,0.053405,0.000915,628.3037,GFLOPS,reference=CPU,Tesla T4,sm_75
+matmul,tiled,256,N,0.045429,0.001507,738.6159,GFLOPS,reference=CPU,Tesla T4,sm_75
+matmul,cublas,256,N,0.031997,0.002677,1048.6809,GFLOPS,reference=CPU,Tesla T4,sm_75
