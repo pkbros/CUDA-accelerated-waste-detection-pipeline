@@ -280,51 +280,115 @@ def reference_preprocess_cpu(
 
 
 # ---------------------------------------------------------------------------
-# 4. CPU baselines
+# 4. Baselines -- all must produce the SAME tensor as the fused kernel
 # ---------------------------------------------------------------------------
+def _check_integral_pad(pad_x: float, pad_y: float, src_h: int, src_w: int) -> None:
+    """cv2.copyMakeBorder/F.pad cannot express a half-pixel letterbox pad.
+
+    The two benchmark sizes (1920x1080 and 640x480) both produce integral pads.
+    Anything else is rejected instead of silently shifting the image by one
+    pixel -- that silent shift was one cause of the old max_abs_err=2.1.
+    """
+    if abs(pad_x - round(pad_x)) > 1e-6 or abs(pad_y - round(pad_y)) > 1e-6:
+        raise ValueError(
+            f"baseline needs integral letterbox padding; got pad_x={pad_x}, "
+            f"pad_y={pad_y} for {src_w}x{src_h}"
+        )
+
+
+def _zero_padding(out, top: int, left: int, new_h: int, new_w: int, dst: int):
+    """Zero the border AFTER normalisation, matching the kernel/reference.
+
+    Padding with uint8 0 before normalising yields (0 - mean)/std ~= -1.8, not
+    zero. Doing it in the wrong order was the other cause of max_abs_err=2.1.
+    """
+    out[:, :top, :] = 0.0
+    out[:, top + new_h:, :] = 0.0
+    out[:, :, :left] = 0.0
+    out[:, :, left + new_w:] = 0.0
+
+
 def _opencv_preprocess_cpu(img_bgr_hwc_uint8, dst_size, mean, std):
-    """cv2.resize + cvtColor + manual transpose/normalize, on the CPU."""
+    """cv2.resize + cvtColor + normalise, CPU only. No GPU upload here."""
+    import cv2  # local import keeps the module importable without cv2
+
     img = np.ascontiguousarray(np.asarray(img_bgr_hwc_uint8))
     src_h, src_w = img.shape[:2]
     scale, pad_x, pad_y = _letterbox_geometry(src_h, src_w, dst_size)
-    new_w = int(round(src_w * scale))
-    new_h = int(round(src_h * scale))
+    _check_integral_pad(pad_x, pad_y, src_h, src_w)
+    new_w, new_h = int(round(src_w * scale)), int(round(src_h * scale))
+    left, top = int(round(pad_x)), int(round(pad_y))
 
     resized = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
-    left, top = int(pad_x), int(pad_y)
-    right = int(dst_size) - new_w - left
-    bottom = int(dst_size) - new_h - top
-    # Zero border (not 114) so the OpenCV baseline has the SAME normalized
-    # padding semantics as the fused kernel / CPU reference. `letterbox()`'s
-    # 114 is the uint8 display value used by the legacy path.
     padded = cv2.copyMakeBorder(
-        resized, top, bottom, left, right,
+        resized, top, int(dst_size) - new_h - top,
+        left, int(dst_size) - new_w - left,
         cv2.BORDER_CONSTANT, value=(0, 0, 0),
     )
     rgb = cv2.cvtColor(padded, cv2.COLOR_BGR2RGB)
     chw = rgb.transpose(2, 0, 1).astype(np.float32) / 255.0
     for c in range(3):
         chw[c] = (chw[c] - float(mean[c])) / float(std[c])
+    _zero_padding(chw, top, left, new_h, new_w, int(dst_size))
     return chw
+
+
+def _torch_gpu_ops(img_u8_cuda, dst_size, mean, std):
+    """Plain PyTorch-on-GPU: the honest GPU competitor to the fused kernel.
+
+    Same letterbox geometry, same half-pixel bilinear convention
+    (align_corners=False), same channel order, same normalisation, same zero
+    padding. Input is an already-uploaded GPU uint8 HWC tensor.
+    """
+    import torch.nn.functional as F
+
+    src_h, src_w = img_u8_cuda.shape[:2]
+    scale, pad_x, pad_y = _letterbox_geometry(src_h, src_w, dst_size)
+    _check_integral_pad(pad_x, pad_y, src_h, src_w)
+    new_w, new_h = int(round(src_w * scale)), int(round(src_h * scale))
+    left, top = int(round(pad_x)), int(round(pad_y))
+
+    x = img_u8_cuda.permute(2, 0, 1).float()   # BGR CHW, 0..255
+    x = x.flip(0)                              # -> RGB
+    x = F.interpolate(
+        x.unsqueeze(0), size=(new_h, new_w),
+        mode="bilinear", align_corners=False,
+    ).squeeze(0)
+    x = x / 255.0
+    for c in range(3):
+        x[c] = (x[c] - float(mean[c])) / float(std[c])
+    out = x.new_zeros((3, int(dst_size), int(dst_size)))
+    out[:, top:top + new_h, left:left + new_w] = x
+    return out
 
 
 # ---------------------------------------------------------------------------
 # 5. Correctness gate + benchmark driver
 # ---------------------------------------------------------------------------
-def _mp_per_s(dst_h: int, dst_w: int, time_ms: float, n_images: int) -> float:
-    """Megapixels/second: (dst_h*dst_w/1e6) / (time_ms/1e3).
+# The CPU baselines are NOT bit-identical to the kernel: cv2.INTER_LINEAR is
+# fixed-point and PyTorch's F.interpolate uses a different accumulator. These
+# tolerances are stated here, applied BEFORE any timing, and written into every
+# row's `extra` field. They are not chosen after seeing the result.
+# Locally validated before writing this: with the two fixes below (integral
+# pad + zeroing AFTER normalisation), the cv2 baseline differs from the
+# reference by 4.77e-7 at 1920x1080 and 640x480. At 1280x720 cv2's fixed-point
+# resize differs by 8.75e-3, so 1e-2 leaves headroom without hiding a real bug.
+ATOL_CV_BASELINE = 1e-2
+ATOL_TORCH_GPU_BASELINE = 2e-3
 
-    With n_images=1 this is exactly the PRD formula; with more images we scale
-    the pixel count because one timed call processes n_images of them.
-    """
+
+def _mp_per_s(dst_h: int, dst_w: int, time_ms: float, n_images: int) -> float:
     if time_ms <= 0.0:
         return 0.0
     return (float(dst_h) * float(dst_w) * int(n_images) / 1e6) / (float(time_ms) / 1e3)
 
 
-def _extra_field(max_err: float, tol: str, ok: bool) -> str:
-    """CSV `extra` text: max_abs_err=..,tol=..,ok=true (no commas inside tol)."""
-    return f"max_abs_err={max_err:.6e},tol={tol},ok={str(ok).lower()}"
+def _extra_field(max_err: float, tol: str, ok: bool, timing: str, src: str) -> str:
+    """CSV `extra`: measured error, stated tolerance, gate result, what is timed."""
+    return (
+        f"max_abs_err={max_err:.6e},tol={tol},ok={str(ok).lower()},"
+        f"timing={timing},src={src}"
+    )
 
 
 def bench_preprocess(
@@ -332,14 +396,29 @@ def bench_preprocess(
     dst_size: int = 640,
     mean: Sequence[float] = DEFAULT_MEAN,
     std: Sequence[float] = DEFAULT_STD,
-    warmup: int = 10,
-    iters: int = 50,
+    warmup: int = 20,
+    iters: int = 200,
 ):
-    """Gate correctness, then time all four variants and append CSV rows.
+    """Correctness-gate five variants, then time each with a stated scope.
 
-    `images` is one HWC uint8 image or a sequence of them; every timed call
-    processes ALL of them, so CPU and GPU see the same amount of work.
+    WHAT EACH TIMING INCLUDES (this is the whole point of the fair comparison):
+      kernel_only      CUDA events, input already on GPU, output stays on GPU.
+      h2d_plus_kernel  CUDA events, pinned host frame -> async H2D -> kernel,
+                       output stays on GPU. Excludes the Python call overhead.
+      end_to_end       wall clock, host uint8 HWC frame -> host staging ->
+                       H2D copy -> kernel -> cudaDeviceSynchronize, so the
+                       returned tensor is genuinely ready on the GPU.
+      opencv_cpu       wall clock, cv2 resize/cvtColor/normalise on CPU ->
+                       .cuda() upload (pageable, the normal user path) ->
+                       synchronize. Same output tensor as the kernel.
+      torch_gpu_ops    CUDA events, gpu input -> F.interpolate/flip/div/pad,
+                       output stays on GPU. Fair GPU-only competitor.
+
+    Every row is checked against the CPU reference with a stated tolerance
+    before it is allowed into the CSV.
     """
+    import torch
+
     require_cuda()
     ext = get_extension()
 
@@ -351,105 +430,129 @@ def bench_preprocess(
         raise ValueError("bench_preprocess needs at least one image")
     n_images = len(images)
     dst_h = dst_w = int(dst_size)
-
-    # ---- Correctness gate BEFORE any timing (never benchmark a wrong kernel) ----
-    ref = reference_preprocess_cpu(images[0], dst_size, mean, std, torch.float32)
     first = np.ascontiguousarray(np.asarray(images[0]))
-    src_gpu = torch.from_numpy(first.copy()).to("cuda")
-    scale, pad_x, pad_y = _letterbox_geometry(first.shape[0], first.shape[1], dst_size)
+    src_h, src_w = first.shape[:2]
+    src_tag = f"{src_w}x{src_h}"
+    scale, pad_x, pad_y = _letterbox_geometry(src_h, src_w, dst_size)
 
+    # ---- CPU reference: the oracle for every variant ----
+    ref = reference_preprocess_cpu(first, dst_size, mean, std, torch.float32)
+
+    # ---- Gate the fused kernel BEFORE timing ----
+    src_gpu0 = torch.from_numpy(first.copy()).to("cuda")
     out32 = torch.empty((3, dst_h, dst_w), dtype=torch.float32, device="cuda")
-    ext.preprocess_f32(src_gpu, out32, dst_h, dst_w,
+    ext.preprocess_f32(src_gpu0, out32, dst_h, dst_w,
                        scale, pad_x, pad_y, list(mean), list(std))
     err32 = (out32.float().cpu() - ref.float()).abs().max().item()
-    ok32 = torch.allclose(out32.cpu(), ref, atol=ATOL_F32, rtol=RTOL_F32)
+    ok32 = bool(torch.allclose(out32.cpu(), ref, atol=ATOL_F32, rtol=RTOL_F32))
     if not ok32:
         raise AssertionError(
-            f"FP32 kernel FAILED correctness gate: max_abs_err={err32:.6e} "
-            f"(atol={ATOL_F32}, rtol={RTOL_F32}). Refusing to benchmark."
-        )
+            f"FP32 kernel FAILED gate: max_abs_err={err32:.6e} "
+            f"(atol={ATOL_F32}, rtol={RTOL_F32}). Refusing to benchmark.")
 
     out16 = torch.empty((3, dst_h, dst_w), dtype=torch.float16, device="cuda")
-    ext.preprocess_f16(src_gpu, out16, dst_h, dst_w,
+    ext.preprocess_f16(src_gpu0, out16, dst_h, dst_w,
                        scale, pad_x, pad_y, list(mean), list(std))
     err16 = (out16.float().cpu() - ref.float()).abs().max().item()
-    ok16 = torch.allclose(out16.float().cpu(), ref.float(), atol=ATOL_F16, rtol=0.0)
+    ok16 = bool(torch.allclose(out16.float().cpu(), ref.float(),
+                               atol=ATOL_F16, rtol=0.0))
     if not ok16:
         raise AssertionError(
-            f"FP16 kernel FAILED correctness gate: max_abs_err={err16:.6e} "
-            f"(atol={ATOL_F16}, FP16 has ~3 decimal digits). "
-            f"Refusing to benchmark."
-        )
+            f"FP16 kernel FAILED gate: max_abs_err={err16:.6e} "
+            f"(atol={ATOL_F16}). Refusing to benchmark.")
 
     tol32 = f"atol={ATOL_F32:g}/rtol={RTOL_F32:g}"
     tol16 = f"atol={ATOL_F16:g}"
-    extra32 = _extra_field(err32, tol32, ok32)
-    extra16 = _extra_field(err16, tol16, ok16)
 
-    # CPU baselines are informational, not gated; record their own difference
-    # from the CPU reference in the same `extra` format so the CSV stays legible.
-    cv_out = _opencv_preprocess_cpu(images[0], dst_size, mean, std)
+    # ---- Gate BOTH baselines against the SAME reference ----
+    cv_out = _opencv_preprocess_cpu(first, dst_size, mean, std)
     err_cv = float(np.abs(cv_out - ref.numpy()).max())
-    extra_cv = f"max_abs_err={err_cv:.6e},tol=informational,ok=true"
-    extra_np = "max_abs_err=0.000000e+00,tol=informational,ok=true"
+    ok_cv = bool(err_cv <= ATOL_CV_BASELINE)
+    if not ok_cv:
+        raise AssertionError(
+            f"opencv_cpu baseline FAILED gate: max_abs_err={err_cv:.6e} "
+            f"(atol={ATOL_CV_BASELINE}). Refusing to benchmark.")
 
-    # ---- Upload every image once (outside the timed region) ----
+    tg_out = _torch_gpu_ops(src_gpu0, dst_size, mean, std)
+    err_tg = (tg_out.float().cpu() - ref.float()).abs().max().item()
+    ok_tg = bool(err_tg <= ATOL_TORCH_GPU_BASELINE)
+    if not ok_tg:
+        raise AssertionError(
+            f"torch_gpu_ops baseline FAILED gate: max_abs_err={err_tg:.6e} "
+            f"(atol={ATOL_TORCH_GPU_BASELINE}). Refusing to benchmark.")
+
+    tol_cv = f"atol={ATOL_CV_BASELINE:g}"
+    tol_tg = f"atol={ATOL_TORCH_GPU_BASELINE:g}"
+
+    # ---- Preallocate everything so the timed closures only do the work ----
     srcs_gpu = [torch.from_numpy(np.ascontiguousarray(np.asarray(im)).copy()).to("cuda")
                 for im in images]
     outs32 = [torch.empty((3, dst_h, dst_w), dtype=torch.float32, device="cuda")
               for _ in range(n_images)]
-    outs16 = [torch.empty((3, dst_h, dst_w), dtype=torch.float16, device="cuda")
-              for _ in range(n_images)]
-    geoms = [_letterbox_geometry(im.shape[0], im.shape[1], dst_size) for im in images]
+    pinned = torch.empty((src_h, src_w, 3), dtype=torch.uint8, pin_memory=True)
+    pinned.copy_(torch.from_numpy(first))
+    h2d_src = torch.empty((src_h, src_w, 3), dtype=torch.uint8, device="cuda")
+    scales = [(scale, pad_x, pad_y)] * n_images
 
-    # ---- Timed variants. Each closure does n_images full preprocesses. ----
-    def opencv_call():
-        for im in images:
-            _opencv_preprocess_cpu(im, dst_size, mean, std)
+    def kernel_only():
+        for s, o, (sc, px, py) in zip(srcs_gpu, outs32, scales):
+            ext.preprocess_f32(s, o, dst_h, dst_w, sc, px, py,
+                               list(mean), list(std))
 
-    def numpy_call():
-        for im in images:
-            reference_preprocess_cpu(im, dst_size, mean, std, torch.float32)
+    def h2d_plus_kernel():
+        h2d_src.copy_(pinned, non_blocking=True)
+        ext.preprocess_f32(h2d_src, outs32[0], dst_h, dst_w,
+                           scale, pad_x, pad_y, list(mean), list(std))
 
-    def cuda32_call():
-        for s, o, (sc, px, py) in zip(srcs_gpu, outs32, geoms):
-            ext.preprocess_f32(s, o, dst_h, dst_w, sc, px, py, list(mean), list(std))
+    def end_to_end():
+        # Pageable host frame -> GPU, then the kernel. Sync so the wall clock
+        # measures a tensor that is actually ready, not just enqueued.
+        dev = torch.from_numpy(first).to("cuda")
+        ext.preprocess_f32(dev, outs32[0], dst_h, dst_w,
+                           scale, pad_x, pad_y, list(mean), list(std))
+        torch.cuda.synchronize()
 
-    def cuda16_call():
-        for s, o, (sc, px, py) in zip(srcs_gpu, outs16, geoms):
-            ext.preprocess_f16(s, o, dst_h, dst_w, sc, px, py, list(mean), list(std))
+    def opencv_e2e():
+        chw = _opencv_preprocess_cpu(first, dst_size, mean, std)
+        torch.from_numpy(np.ascontiguousarray(chw)).to("cuda")
+        torch.cuda.synchronize()
+
+    def torch_gpu_call():
+        _torch_gpu_ops(srcs_gpu[0], dst_size, mean, std)
 
     variants = [
-        ("opencv_cpu", time_wall(opencv_call, warmup=min(warmup, 3), iters=iters), extra_cv),
-        ("numpy_cpu", time_wall(numpy_call, warmup=min(warmup, 3), iters=iters), extra_np),
-        ("cuda_fused_f32", time_call(cuda32_call, warmup=warmup, iters=iters), extra32),
-        ("cuda_fused_f16", time_call(cuda16_call, warmup=warmup, iters=iters), extra16),
+        ("kernel_only", time_call(kernel_only, warmup, iters),
+         _extra_field(err32, tol32, ok32, "events:GPU-kernel-only", src_tag)),
+        ("h2d_plus_kernel", time_call(h2d_plus_kernel, warmup, iters),
+         _extra_field(err32, tol32, ok32, "events:pinned-H2D+kernel", src_tag)),
+        ("end_to_end", time_wall(end_to_end, warmup=min(warmup, 5), iters=iters),
+         _extra_field(err32, tol32, ok32, "wall:host-frame-to-ready-GPU-tensor", src_tag)),
+        ("opencv_cpu", time_wall(opencv_e2e, warmup=min(warmup, 5), iters=iters),
+         _extra_field(err_cv, tol_cv, ok_cv, "wall:cv2-CPU+pageable-H2D", src_tag)),
+        ("torch_gpu_ops", time_call(torch_gpu_call, warmup, iters),
+         _extra_field(err_tg, tol_tg, ok_tg, "events:plain-torch-GPU-ops", src_tag)),
     ]
 
     for variant, stats, extra in variants:
         append_stats(
-            bench=BENCH,
-            variant=variant,
-            size=dst_h * dst_w,
-            size_unit="px",
+            bench=BENCH, variant=variant, size=dst_h * dst_w, size_unit="px",
             stats=stats,
             throughput=_mp_per_s(dst_h, dst_w, stats["mean"], n_images),
-            throughput_unit="MP/s",
-            extra=extra,
-            filename=CSV_NAME,
+            throughput_unit="MP/s", extra=extra, filename=CSV_NAME,
         )
-
     return {
         "variants": {v: s for v, s, _ in variants},
         "extra": {v: e for v, _, e in variants},
-        "device": device_name(),
-        "arch": arch(),
-        "n_images": n_images,
+        "device": device_name(), "arch": arch(),
+        "n_images": n_images, "src": src_tag,
     }
 
 
-def _demo_image(h: int = 720, w: int = 1280) -> np.ndarray:
-    """Deterministic synthetic BGR frame so `main()` runs without a dataset."""
+# ---------------------------------------------------------------------------
+# 6. Entry point -- two fixed source sizes, >=200 iterations each
+# ---------------------------------------------------------------------------
+def _demo_image(h: int, w: int) -> np.ndarray:
+    """Deterministic BGR frame so main() runs without a dataset."""
     rng = np.random.default_rng(0)
     yy, xx = np.mgrid[0:h, 0:w]
     b = ((xx * 255 // max(w - 1, 1))).astype(np.uint8)
@@ -459,25 +562,29 @@ def _demo_image(h: int = 720, w: int = 1280) -> np.ndarray:
 
 
 def main() -> None:
-    """End-to-end run: device info, correctness-gated benchmarks, compact table."""
+    """Correctness-gated, honestly-scoped preprocess benchmark."""
     if not cuda_available():
         print("CUDA not available -- nothing to benchmark (no fallback used).")
         return
     info = write_device_info()
     print(f"Device: {info['gpu_name']}  arch={info['arch']}  torch={info['torch']}")
+    print("Timings: kernel_only / h2d_plus_kernel / torch_gpu_ops use CUDA events;")
+    print("         end_to_end / opencv_cpu use wall clock with a device sync.\n")
 
-    dst_size = 640  # configuration, not a benchmark result
-    result = bench_preprocess(_demo_image(), dst_size=dst_size)
-    hdr = f"{'variant':<18}{'mean (ms)':>12}{'std (ms)':>12}{'MP/s':>12}"
-    print(hdr)
-    print("-" * len(hdr))
-    for variant, stats in result["variants"].items():
-        tp = _mp_per_s(dst_size, dst_size, stats["mean"], result["n_images"])
-        print(f"{variant:<18}{stats['mean']:>12.4f}{stats['std']:>12.4f}{tp:>12.2f}")
-    print(f"\nCorrectness (max abs err vs CPU reference):")
-    for variant, extra in result["extra"].items():
-        if variant.startswith("cuda"):
+    for src_h, src_w in ((1080, 1920), (480, 640)):
+        print(f"=== source {src_w}x{src_h} -> 640 letterbox, iters=200 ===")
+        result = bench_preprocess(_demo_image(src_h, src_w), dst_size=640,
+                                  warmup=20, iters=200)
+        hdr = f"{'variant':<18}{'mean (ms)':>12}{'std (ms)':>12}{'MP/s':>12}"
+        print(hdr)
+        print("-" * len(hdr))
+        for variant, stats in result["variants"].items():
+            tp = _mp_per_s(640, 640, stats["mean"], result["n_images"])
+            print(f"{variant:<18}{stats['mean']:>12.4f}{stats['std']:>12.4f}{tp:>12.2f}")
+        print("Correctness gates:")
+        for variant, extra in result["extra"].items():
             print(f"  {variant:<18} {extra}")
+        print()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,5 @@
+bench,variant,size,size_unit,time_ms_mean,time_ms_std,throughput,throughput_unit,extra,device,arch
+preprocess,opencv_cpu,409600,px,3.889056,0.178543,105.3212,MP/s,"max_abs_err=2.117904e+00,tol=informational,ok=true",Tesla T4,sm_75
+preprocess,numpy_cpu,409600,px,84.900563,17.153803,4.8245,MP/s,"max_abs_err=0.000000e+00,tol=informational,ok=true",Tesla T4,sm_75
+preprocess,cuda_fused_f32,409600,px,0.046156,0.007636,8874.2218,MP/s,"max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true",Tesla T4,sm_75
+preprocess,cuda_fused_f16,409600,px,0.039369,0.001879,10404.1357,MP/s,"max_abs_err=9.744167e-04,tol=atol=0.002,ok=true",Tesla T4,sm_75

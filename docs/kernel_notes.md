@@ -257,6 +257,25 @@ and written into the CSV `extra` column.
 reference and the GPU use bit-identical `scale`/`pad_x`/`pad_y`. Recomputing it on the device
 would be an unnecessary second source of disagreement.
 
+**Correction to the first benchmark (Task 1).** The original `opencv_cpu` row reported
+`max_abs_err=2.117904e+00`, so it was not computing the same tensor as the kernel. Two bugs
+caused it, both now fixed and verified locally without a GPU:
+
+1. A half-pixel letterbox pad was truncated with `int(pad_x)`, shifting the pasted image by
+   one pixel. The baseline now asserts integral padding and rejects any size that cannot
+   express it (the two benchmark sizes, 1920×1080 and 640×480, both can).
+2. The border was zeroed as *uint8 zero before normalisation*, which yields
+   `(0 - mean)/std ≈ -1.8`; the kernel writes zero *after* normalisation. The helper
+   `_zero_padding()` now zeroes after.
+
+With both fixes the OpenCV baseline differs from the reference by `4.768372e-07` at both
+benchmark sizes (at 1280×720 cv2's fixed-point resize gives `8.753657e-03`, hence a stated
+`atol=1e-2` for that row). The old "84× faster than OpenCV" claim is withdrawn: it compared a
+GPU-kernel-only time against a CPU time with no upload. The benchmark now reports
+`kernel_only`, `h2d_plus_kernel`, `end_to_end`, `opencv_cpu` (upload included) and
+`torch_gpu_ops`, each with its timing scope recorded in the CSV `extra` column. New numbers
+require a T4 run; none are estimated here.
+
 ---
 
 ## 6. Inference ladder — `phase_b/infer_bench.py`

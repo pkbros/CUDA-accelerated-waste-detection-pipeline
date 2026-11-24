@@ -1,0 +1,7 @@
+bench,variant,size,size_unit,time_ms_mean,time_ms_std,throughput,throughput_unit,extra,device,arch
+batching,serial_batch,1,feeds,2840.128912,281.342576,105.6290,FPS,"source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true,feeds=1,fps_per_feed=105.6290",Tesla T4,sm_75
+batching,pipelined_batch,1,feeds,2722.081351,217.452478,110.2098,FPS,"source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true,feeds=1,fps_per_feed=110.2098",Tesla T4,sm_75
+batching,serial_batch,2,feeds,2811.909928,235.217352,213.3781,FPS,"source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true,feeds=2,fps_per_feed=106.6891",Tesla T4,sm_75
+batching,pipelined_batch,2,feeds,4148.443831,38.949070,144.6325,FPS,"source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true,feeds=2,fps_per_feed=72.3163",Tesla T4,sm_75
+batching,serial_batch,4,feeds,2834.922338,261.829146,423.2920,FPS,"source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true,feeds=4,fps_per_feed=105.8230",Tesla T4,sm_75
+batching,pipelined_batch,4,feeds,8088.466764,48.238609,148.3594,FPS,"source=synthetic,backend=pt_fp32,preprocess=cuda_kernel,end_to_end_wall_clock=true,synthetic=true,feeds=4,fps_per_feed=37.0898",Tesla T4,sm_75

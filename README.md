@@ -68,6 +68,13 @@ python tools/summary.py
 which reads the CSVs written by the benchmarks and emits the tables, including the GPU the
 numbers came from. Run it after the notebook; it is the only source of numbers in this repo.
 
+The current CSVs are from the first **synthetic** run, archived under
+`results/synthetic_run1/`. Its preprocess speedup claim has been withdrawn: the GPU time
+excluded the host→device upload while the OpenCV baseline excluded it too, and that
+baseline had `max_abs_err=2.1` against the reference. The benchmark has been rewritten to
+report five honestly-scoped timings (Task 1), but the new numbers do not exist yet — they
+need a T4 run. Nothing here is estimated in the meantime.
+
 `results/failures.md` records what did not work in the target environment (for example
 Nsight Compute on Colab, or a TensorRT install that fights the preinstalled PyTorch), with the
 actual error text. Those rows are absent from the tables on purpose.
@@ -139,7 +146,7 @@ comes from [`results/summary.md`](results/summary.md), not from expectation:
 | Shared-memory tiling | reuse a tile 32× so GEMM turns compute-bound | 732 vs 667 GFLOP/s; cuBLAS still 6130 | `matmul.cu` |
 | Pinned memory | lets the copy engine DMA without a bounce buffer | 11.10 ms vs 31.16 ms pageable (2.81×) | `streams.cu` |
 | Multiple streams | copy of one chunk overlaps compute of another | 7.25 ms vs 11.10 ms pinned (1.53× more) | `streams.cu` |
-| Kernel fusion | one pass instead of five over intermediates | 0.046 ms vs 3.889 ms OpenCV (84×) | `preprocess.cu` |
+| Kernel fusion | one pass instead of five over intermediates | **withdrawn pending fair re-measurement** — the old 84× compared a GPU-kernel-only time against an un-uploaded CPU time, and that OpenCV row had `max_abs_err=2.1`. Task 1 now adds `kernel_only`, `h2d_plus_kernel`, `end_to_end`, `opencv_cpu` (upload included) and `torch_gpu_ops`, all gated against one reference. | `preprocess.cu` |
 | FP16 | tensor cores are ~8× FP32 *peak* on paper | **slower**: 10.030 vs 8.079 ms at batch 1 | `infer_bench.py` |
 | ONNX Runtime CUDA | graph optimisation + tuned kernels | 7.916 ms, 1.02× over eager FP32 | `infer_bench.py` |
 | Batching / pipeline | amortise launches, overlap copy with infer | serial holds ~106 FPS/feed; pipelined **regresses** at 2/4 feeds | `pipeline.py` |
