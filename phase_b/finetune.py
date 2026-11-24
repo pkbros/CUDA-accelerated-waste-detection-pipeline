@@ -60,6 +60,38 @@ def _yaml_scalar(text: str, key: str) -> str | None:
     return None
 
 
+def _absolute_data_yaml(data_yaml: Path) -> Path:
+    """Return a copy of the dataset yaml with absolute image paths.
+
+    Ultralytics resolves a relative `path:` against the process working
+    directory in newer releases. The generated data/waste.yaml uses
+    `path: .` + `waste/images/...`, which is correct only when the CWD is
+    data/. Resolving train/val against the yaml's own directory here makes
+    training work from any CWD, including the Colab notebook root.
+    """
+    base = data_yaml.parent.resolve()
+    lines: list[str] = []
+    for line in data_yaml.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("path:"):
+            continue  # absolute train/val make `path` unnecessary
+        handled = False
+        for key in ("train", "val"):
+            if stripped.startswith(key + ":"):
+                value = stripped.split(":", 1)[1].strip().strip("'\"")
+                path = Path(value)
+                if not path.is_absolute():
+                    path = base / path
+                lines.append(f"{key}: {path.resolve()}")
+                handled = True
+                break
+        if not handled:
+            lines.append(line)
+    target = data_yaml.with_name("waste_train_absolute.yaml")
+    target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return target
+
+
 def _metric(box: Any, *names: str) -> str:
     """Read the first available metric from ultralytics' box results object."""
     if box is None:
@@ -142,13 +174,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     from ultralytics import YOLO  # imported lazily so --help works without torch
 
+    train_yaml = _absolute_data_yaml(data_yaml)
+    print(f"training with absolute dataset paths from {train_yaml}")
     model = YOLO(args.model)
     # Colab's free tier has 2 vCPUs: workers > 2 is a known deadlock.
     # cache=False on the first epoch: do not copy the dataset into RAM/disk on a
     # machine with tight memory; enable caching only on later runs if needed.
     t0 = time.perf_counter()
     results = model.train(
-        data=str(data_yaml),
+        data=str(train_yaml),
         epochs=args.epochs,
         imgsz=args.imgsz,
         batch=args.batch,

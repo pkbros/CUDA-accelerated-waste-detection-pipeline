@@ -92,8 +92,12 @@ def main() -> int:
                     if line.strip():
                         counts[int(line.split()[0])] += 1
 
+    # Absolute paths: newer Ultralytics resolves a relative `path:` against the
+    # process CWD, so `waste/images/val` used to become <repo>/waste/... and
+    # training failed. OUT is data/waste, so these are the real image folders.
+    data_root = OUT.resolve()
     yaml = (
-        "path: .\ntrain: waste/images/train\nval: waste/images/val\n"
+        f"path: {data_root}\ntrain: images/train\nval: images/val\n"
         f"nc: {len(classes)}\nnames:\n"
         + "\n".join(f"  {i}: '{c}'" for i, c in enumerate(classes)) + "\n"
     )
