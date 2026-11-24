@@ -1,0 +1,19 @@
+Generating SQLite file /content/cuda-waste-pipeline/reports/vector_add.sqlite from /content/cuda-waste-pipeline/reports/vector_add.nsys-rep
+Processing [/content/cuda-waste-pipeline/reports/vector_add.sqlite] with [/opt/nvidia/nsight-compute/2025.3.1/host/target-linux-x64/reports/cuda_gpu_kern_sum.py]... 
+
+ ** CUDA GPU Kernel Summary (cuda_gpu_kern_sum):
+
+ Time (%)  Total Time (ns)  Instances  Avg (ns)   Med (ns)   Min (ns)  Max (ns)  StdDev (ns)                                   Name                                  
+ --------  ---------------  ---------  ---------  ---------  --------  --------  -----------  -----------------------------------------------------------------------
+     50.8       28,604,934         30  953,497.8  953,655.0   942,374   956,166      2,501.0  vector_add_float4(const float *, const float *, float *, unsigned long)
+     49.2       27,718,459         30  923,948.6  923,991.0   921,032   924,648        613.3  vector_add_scalar(const float *, const float *, float *, unsigned long)
+
+Processing [/content/cuda-waste-pipeline/reports/vector_add.sqlite] with [/opt/nvidia/nsight-compute/2025.3.1/host/target-linux-x64/reports/cuda_gpu_mem_time_sum.py]... 
+
+ ** CUDA GPU MemOps Summary (by Time) (cuda_gpu_mem_time_sum):
+
+ Time (%)  Total Time (ns)  Count    Avg (ns)      Med (ns)     Min (ns)    Max (ns)   StdDev (ns)           Operation          
+ --------  ---------------  -----  ------------  ------------  ----------  ----------  -----------  ----------------------------
+     53.3       38,104,676      2  19,052,338.0  19,052,338.0  18,065,820  20,038,856  1,395,147.1  [CUDA memcpy Host-to-Device]
+     46.7       33,328,068      2  16,664,034.0  16,664,034.0  16,122,736  17,205,332    765,511.0  [CUDA memcpy Device-to-Host]
+

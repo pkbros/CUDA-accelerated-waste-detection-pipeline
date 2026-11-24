@@ -4,7 +4,8 @@ panel,label,value,unit,source,note
 ,boxes,8895,,dataset.csv,
 ,sampling seed,0,,waste.yaml,fixed seed for the six val images
 ,classes,"0=cardboard, 1=metal, 2=rigid_plastic, 3=soft_plastic",,waste.yaml,
-,NOT RUN,,,finetune.csv,no fine-tune metrics
+,mAP50,0.417300,,finetune.csv,
+,mAP50-95,0.324682,,finetune.csv,
 ,val frame 1,03_frame_051300_PNG.rf.edbbadc6766913412dad57c75419ed0f.jpg,,waste.yaml,fixed seed 0
 ,val frame 1 boxes,1,boxes,03_frame_051300_PNG.rf.edbbadc6766913412dad57c75419ed0f.txt,
 ,val frame 2,12_frame_023900_PNG.rf.507ab2348b4690ca09ab9bbd3206327b.jpg,,waste.yaml,fixed seed 0

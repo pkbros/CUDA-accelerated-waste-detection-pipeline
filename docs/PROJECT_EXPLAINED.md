@@ -4,6 +4,12 @@ For Prateek, final-year CS student, preparing to defend this repo in a CUDA Engi
 This is an explainer, not a script and not a sales pitch. **Every number below comes from a
 CSV in `results/` or a line of code in this repo.** Jargon is defined the first time it appears.
 
+> **Update after the fine-tune run:** the detector is no longer only pretrained COCO. A later
+> T4 run trained YOLOv8n for 30 epochs on the ZeroWaste subset and wrote a measured mAP50 of
+> 0.4173 in `results/finetune.csv`. Both runs are preserved under `results/runs/`; slide 12 of
+> the slide pack compares them. Sections below that call fine-tuning "pending" describe the
+> earlier pretrained-only run and are kept as the historical baseline.
+
 **Where the numbers come from.** The repo holds two measured runs. The first run is archived in
 `results/synthetic_run1/*.csv`; its Phase A numbers are the ones quoted in `README.md` and
 `docs/kernel_notes.md`, so those are the headline numbers used here. A later re-run wrote
@@ -18,10 +24,10 @@ and ratios are the same. Where it matters, both are given.
 ## 1. What this project is, in 5 lines
 
 1. It is a **prototype** CUDA performance study: how fast can we move a conveyor-camera frame into a GPU and through a waste detector, and *why* (`README.md:3-16`, `PRD.md:5-15`).
-2. It detects waste with a **pretrained COCO YOLOv8n** (YOLO = "you only look once", a real-time object detector) on real ZeroWaste conveyor stills — no model was trained here (`results/dataset.csv`, `results/failures.md:19`).
+2. The preserved baseline run detects with **pretrained COCO YOLOv8n** (YOLO = "you only look once", a real-time object detector) on real ZeroWaste stills; the active run uses a 30-epoch fine-tuned YOLOv8n with measured mAP50 0.4173 (`results/finetune.csv`, `results/runs/`).
 3. It hand-writes five GPU kernels — vector add, reduction, tiled matmul, streams, fused preprocess — and times each against a fair baseline (`phase_a/*.cu`, `phase_b/preprocess.cu`).
 4. On **one Tesla T4** (sm_75, CUDA 13.0, torch 2.14.1+cu130) over 120 real frames, the loop goes 63.9 → 93.0 FPS, a 1.46× speedup (`results/device.json`, `results/demo_frame_timings.csv`).
-5. Its limits are part of the story: a small 1,415-train/300-val subset, **no mAP yet** (fine-tuning is planned/pending), one GPU, and no deployment claim (`results/dataset.csv`, `README.md:47-56`).
+5. Its limits are part of the story: a small 1,415-train/300-val subset, mAP measured only on that 300-image val split, one GPU, and no deployment claim (`results/dataset.csv`, `results/finetune.csv`).
 
 ---
 

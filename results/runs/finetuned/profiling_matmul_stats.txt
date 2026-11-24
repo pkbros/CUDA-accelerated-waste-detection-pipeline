@@ -1,0 +1,22 @@
+Generating SQLite file /content/cuda-waste-pipeline/reports/matmul.sqlite from /content/cuda-waste-pipeline/reports/matmul.nsys-rep
+Processing [/content/cuda-waste-pipeline/reports/matmul.sqlite] with [/opt/nvidia/nsight-compute/2025.3.1/host/target-linux-x64/reports/cuda_gpu_kern_sum.py]... 
+
+ ** CUDA GPU Kernel Summary (cuda_gpu_kern_sum):
+
+ Time (%)  Total Time (ns)  Instances   Avg (ns)     Med (ns)    Min (ns)  Max (ns)   StdDev (ns)                           Name                         
+ --------  ---------------  ---------  -----------  -----------  --------  ---------  -----------  ------------------------------------------------------
+     51.3       64,492,586         20  3,224,629.3  3,161,046.5    16,960  6,460,234  3,291,168.3  gemm_naive(const float *, const float *, float *, int)
+     42.2       53,001,876         20  2,650,093.8  2,596,996.0    13,567  5,310,277  2,705,160.8  gemm_tiled(const float *, const float *, float *, int)
+      6.4        8,032,071         10    803,207.1    803,150.0   802,541    803,981        496.9  volta_sgemm_128x64_nn                                 
+      0.1          111,581         10     11,158.1     11,072.0    11,040     11,615        184.6  volta_sgemm_32x32_sliced1x4_nn                        
+
+Processing [/content/cuda-waste-pipeline/reports/matmul.sqlite] with [/opt/nvidia/nsight-compute/2025.3.1/host/target-linux-x64/reports/cuda_gpu_mem_time_sum.py]... 
+
+ ** CUDA GPU MemOps Summary (by Time) (cuda_gpu_mem_time_sum):
+
+ Time (%)  Total Time (ns)  Count  Avg (ns)   Med (ns)   Min (ns)  Max (ns)  StdDev (ns)           Operation          
+ --------  ---------------  -----  ---------  ---------  --------  --------  -----------  ----------------------------
+     53.9        1,676,441      6  279,406.8  234,714.5     2,656   602,067    306,927.3  [CUDA memcpy Device-to-Host]
+     45.9        1,428,928      4  357,232.0  355,464.0     3,360   714,640    408,442.6  [CUDA memcpy Host-to-Device]
+      0.2            7,232     10      723.2      720.0       704       768         22.4  [CUDA memset]               
+

@@ -5,16 +5,17 @@ a pretrained YOLOv8n on real conveyor frames, and profiling that shows what got 
 
 ![Where the time goes](docs/ppt_pack/03_latency_breakdown.png)
 
-**For the interview:** [slide-image pack](docs/ppt_pack/index.md) (11 PNGs, every number from a
-CSV) and [plain-English project explainer](docs/PROJECT_EXPLAINED.md). The older demo video is
-left on disk but is no longer the deliverable.
+**For the interview:** [slide-image pack](docs/ppt_pack/index.md) (14 PNGs, every number from a
+CSV) and [plain-English project explainer](docs/PROJECT_EXPLAINED.md). Slide 12 compares the two
+preserved runs side by side. The older demo video is left on disk but is no longer the deliverable.
 
 ![Pipeline overview](docs/overview.png)
 
-> **Status: prototype.** Every number below comes from a CSV written by a run on a Colab
-> **Tesla T4 (sm_75, CUDA 13.0)**. The first synthetic run is archived in
-> `results/synthetic_run1/`; the current `results/*.csv` are from the later real-data run.
-> Fine-tuning was deliberately skipped: this is a CUDA performance study, not a detector project.
+> **Status: prototype.** Every number comes from a CSV written by a run on a Colab
+> **Tesla T4 (sm_75, CUDA 13.0)**. Two complete real-data runs are preserved under
+> `results/runs/`: `pretrained_coco/` (COCO YOLOv8n) and `finetuned/` (30-epoch ZeroWaste
+> fine-tune, measured mAP50 0.4173). The current `results/*.csv` are the fine-tuned run;
+> the table below is the preserved pretrained-COCO run, kept for comparison.
 
 The rule this repo is built around: *if a benchmark did not run, it does not appear.*
 `results/summary.md` is generated from `results/*.csv`, and anything missing shows up as
@@ -25,7 +26,10 @@ The rule this repo is built around: *if a benchmark did not run, it does not app
 ## Results at a glance
 
 Measured on a **Tesla T4 (sm_75, 14.56 GiB, torch 2.14.1+cu130, CUDA 13.0)**.
-Full tables: [`results/summary.md`](results/summary.md).
+Full tables: [`results/summary.md`](results/summary.md). The numbers below are the
+**preserved pretrained-COCO run**; see
+[`12_pretrained_vs_finetuned.png`](docs/ppt_pack/12_pretrained_vs_finetuned.png) for the
+side-by-side comparison with the fine-tuned run.
 
 | What | Baseline | Ours | Speedup |
 |---|---|---|---|
@@ -47,14 +51,16 @@ skipping detections. ncu reported ~95% DRAM throughput and ~6.5% SM throughput f
 
 ### What is *not* in these results
 
-- `infer.csv` contains **batch 1 only**. The batch 4/8 attempts did not emit rows; no batch-4/8
-  claim is made.
-- `pipeline.csv` and `batching.csv` still say `source=synthetic` — the real-video per-frame
-  numbers are in `results/demo_frame_timings.csv` instead.
 - TensorRT is absent (`ModuleNotFoundError: No module named 'tensorrt'`); ONNX Runtime CUDA
-  is the top rung that actually ran.
-- No mAP, no fine-tuned weights, and no claim about detection quality. The detector is
-  pretrained COCO YOLOv8n on waste imagery.
+  is the top rung that actually ran, and its batch 4/8 attempts produced no rows.
+- The first synthetic run is archived in `results/synthetic_run1/` and is never mixed with
+  real-data numbers.
+- The fine-tuned run's mAP is measured on this 300-image val split only — it is a prototype
+  number, not a claim about a deployed detector.
+
+The later **fine-tuned** run adds measured mAP50 0.4173 / mAP50-95 0.3247, batch 1/4/8 rows
+in `infer.csv`, and `source=real_video` in `pipeline.csv` / `batching.csv`. Both runs are
+preserved verbatim under `results/runs/`.
 
 ---
 
@@ -206,13 +212,13 @@ comes from [`results/summary.md`](results/summary.md), not from expectation:
 - **Colab is not bare metal.** vCPUs are shared and virtualised, so the CPU baselines are
   noisier and slower than a desktop would be, which *flatters* the GPU speedups. Absolute PCIe
   bandwidth is also below a physical x16 link, and the session can be reclaimed mid-run.
-- **The old benchmark CSVs are synthetic** (archived in `results/synthetic_run1/`). The new
-  dataset and demo video use real ZeroWaste conveyor frames; new runs must be generated on a
-  T4 before those CSVs are replaced.
-- **The detector is deliberately pretrained COCO YOLOv8n, not fine-tuned.** This is a CUDA
-  performance study: retraining would change the workload being measured. The real ZeroWaste
-  subset (1,415 train / 300 val) exists only to supply real frames; any detections are COCO
-  classes, and no mAP is claimed.
+- **The old benchmark CSVs are synthetic** (archived in `results/synthetic_run1/`). Both
+  current runs use real ZeroWaste conveyor frames and are preserved under `results/runs/`.
+- **Two detectors, two runs.** The preserved `pretrained_coco/` run used COCO YOLOv8n as a
+  fixed workload. The active `finetuned/` run trained 30 epochs on the real ZeroWaste subset
+  (1,415 train / 300 val) and reports measured mAP50 0.4173. The core CUDA result — the
+  1.4–1.5x pipeline speedup from preprocess, backend and streams — holds in both runs; see
+  slide 12 for the comparison.
 - **Licence:** the Roboflow API reports CC BY 4.0 for the hosted ZeroWaste copy, resolving the
   conflicting CC BY-NC prose on the web page. This is prototype interview use, not
   redistribution; see `docs/data_sources.md`.

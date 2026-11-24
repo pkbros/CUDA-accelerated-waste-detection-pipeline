@@ -1,12 +1,12 @@
 panel,label,value,unit,source,note
-,baseline total mean,16.146017,ms,demo_frame_timings.csv,
-,optimized total mean,10.679240,ms,demo_frame_timings.csv,
-,optimized percent of baseline,66.141635,%,demo_frame_timings.csv,computed from the two measured totals
-baseline,baseline decode,1.535935,ms,demo_frame_timings.csv,
-baseline,baseline preprocess,3.784705,ms,demo_frame_timings.csv,
-baseline,baseline inference,10.825378,ms,demo_frame_timings.csv,
+,baseline total mean,21.671809,ms,demo_frame_timings.csv,
+,optimized total mean,14.868720,ms,demo_frame_timings.csv,
+,optimized percent of baseline,68.608578,%,demo_frame_timings.csv,computed from the two measured totals
+baseline,baseline decode,1.977973,ms,demo_frame_timings.csv,
+baseline,baseline preprocess,4.902548,ms,demo_frame_timings.csv,
+baseline,baseline inference,14.791288,ms,demo_frame_timings.csv,
 baseline,baseline postprocess,0.000000,ms,demo_frame_timings.csv,zero width: not drawn
-optimized,optimized decode,1.535935,ms,demo_frame_timings.csv,
-optimized,optimized preprocess,0.399522,ms,demo_frame_timings.csv,
-optimized,optimized inference,8.743783,ms,demo_frame_timings.csv,
+optimized,optimized decode,1.977973,ms,demo_frame_timings.csv,
+optimized,optimized preprocess,0.456298,ms,demo_frame_timings.csv,
+optimized,optimized inference,12.434448,ms,demo_frame_timings.csv,
 optimized,optimized postprocess,0.000000,ms,demo_frame_timings.csv,zero width: not drawn

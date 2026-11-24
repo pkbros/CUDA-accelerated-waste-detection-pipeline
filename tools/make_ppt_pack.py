@@ -132,6 +132,7 @@ STEMS = (
     "09_multi_feed",
     "10_what_did_not_work",
     "11_detection_quality",
+    "12_pretrained_vs_finetuned",
 )
 # The brief calls the three side-by-side images one "image slot", so the pack
 # is 11 unique images / 13 PNG files.  INDEX_ORDER keeps the requested 11 rows.
@@ -147,6 +148,7 @@ INDEX_ORDER = (
     "09_multi_feed",
     "10_what_did_not_work",
     "11_detection_quality",
+    "12_pretrained_vs_finetuned",
 )
 
 DESCRIPTIONS = {
@@ -163,6 +165,7 @@ DESCRIPTIONS = {
     "09_multi_feed": "Compares serial and pipelined FPS per feed at one, two and four feeds.",
     "10_what_did_not_work": "Collects the three measured regressions: float4 loads, FP16 inference and multi-feed pipelining.",
     "11_detection_quality": "Shows six fixed-seed validation frames with thin outlined ground-truth boxes and the fine-tune status.",
+    "12_pretrained_vs_finetuned": "Compares the preserved pretrained-COCO run against the fine-tuned run on the same hardware and frames.",
 }
 
 SOURCES: dict[str, list[str]] = {}
@@ -467,10 +470,19 @@ def draw_frame_panel(
             name = cls_names.get(box.cls)
             base = name or f"cls {box.cls}"
             label = f"{base} {box.score:.2f}" if show_score else base
-            label_y = top + 0.006 + (0.034 if box_index % 2 else 0.0)
+            label_y = min(top + 0.006 + (0.034 if box_index % 2 else 0.0),
+                          yhi - 0.038)
+            # Long labels ('rigid_plastic 0.29') would be cut off at the panel
+            # edge. Keep them inside the footage: right-align near the right
+            # edge, left-align near the left edge.
+            est_w = len(label) * BOX_LABEL * 0.00045
+            if x1 + est_w > xhi - 0.004 and x2 - est_w > xlo + 0.004:
+                label_x, align = x2 - 0.004, "right"
+            else:
+                label_x, align = min(x1, xhi - est_w - 0.004), "left"
             ax.text(
-                x1, label_y, label, fontsize=BOX_LABEL, color="white",
-                va="bottom", ha="left",
+                label_x, label_y, label, fontsize=BOX_LABEL, color="white",
+                va="bottom", ha=align,
                 bbox=dict(facecolor=color, edgecolor="none", pad=1.2),
             )
 
@@ -571,7 +583,11 @@ def build_02(data: PPTData, chosen: list[FrameTiming], brightness: list[float],
             c.text(x0 + w - 0.012, 0.855, sub, size=MINI, color=MUTED, ha="right")
             ax = c.fig.add_axes([x0, y0, w, h], facecolor="white")
             ax.set_axis_off()
-            draw_frame_panel(c, ax, rgb, boxes, color, COCO_NAMES)
+            # The active CSVs come from the fine-tuned detector, whose class
+            # ids are the four waste classes in data/waste.yaml. Only the
+            # preserved pretrained run needs the COCO name lookup.
+            draw_frame_panel(c, ax, rgb, boxes, color,
+                             cls_names if data.finetune else COCO_NAMES)
             c.text(
                 x0 + 0.012, 0.245,
                 f"decode {fmt(stages[0])}  pre {fmt(stages[1])}  infer {fmt(stages[2])}  post {fmt(stages[3])} ms",
@@ -599,12 +615,16 @@ def build_02(data: PPTData, chosen: list[FrameTiming], brightness: list[float],
             note = "selection relaxed: no frame met the multi-detection rule"
         c.text(0.03, 0.122, note + " | thin outlines only; footage is not covered",
                size=MINI, color=MUTED)
-        # Say plainly that these are COCO class names from the pretrained model,
-        # so a waste-detection claim is never implied by labels like 'banana'.
-        c.text(0.03, 0.088,
-               "labels are pretrained COCO classes (e.g. tie, banana, person), "
-               "not waste classes",
-               size=MINI, color=MUTED)
+        # Labels must match the detector that produced the boxes. The old
+        # COCO run used 80-class COCO ids; the fine-tuned run uses the four
+        # waste classes, so never show "person" on a real waste detection.
+        label_note = (
+            "labels are the four waste classes from data/waste.yaml"
+            if data.finetune else
+            "labels are pretrained COCO classes (e.g. tie, banana, person), "
+            "not waste classes"
+        )
+        c.text(0.03, 0.088, label_note, size=MINI, color=MUTED)
         c.value("selection", None, panel="selection", source="demo_frame_timings.csv", note=note)
         c.finish(footer_for(data, stem), "data-backed")
 
@@ -1200,14 +1220,13 @@ def build_11(data: PPTData) -> None:
 
     if data.finetune:
         c.rect(0.04, 0.755, 0.92, 0.075, face="white", edge=TEAL, lw=1.6, rounded=True)
-        c.text(0.06, 0.792, f"mAP50 ({data.finetune.map50_name}): {fmt(data.finetune.map50, 3)}",
+        c.text(0.06, 0.792, f"mAP50: {fmt(data.finetune.map50, 3)}",
                size=BODY, color=TEAL, weight="bold")
-        c.value(data.finetune.map50_name, f"{data.finetune.map50:.6f}", source="finetune.csv")
+        c.value("mAP50", f"{data.finetune.map50:.6f}", source="finetune.csv")
         if data.finetune.map50_95 is not None:
-            c.text(0.52, 0.792,
-                   f"mAP50-95 ({data.finetune.map50_95_name}): {fmt(data.finetune.map50_95, 3)}",
+            c.text(0.52, 0.792, f"mAP50-95: {fmt(data.finetune.map50_95, 3)}",
                    size=BODY, color=TEAL, weight="bold")
-            c.value(data.finetune.map50_95_name, f"{data.finetune.map50_95:.6f}", source="finetune.csv")
+            c.value("mAP50-95", f"{data.finetune.map50_95:.6f}", source="finetune.csv")
         status = "data-backed"
     else:
         c.rect(0.04, 0.755, 0.92, 0.075, face="white", edge=ORANGE, lw=1.6, rounded=True)
@@ -1251,9 +1270,112 @@ def build_11(data: PPTData) -> None:
         # have none, so overlay a corrected class-only label below.
         c.value(f"val frame {i + 1}", path.name, source="waste.yaml", note="fixed seed 0")
         c.value(f"val frame {i + 1} boxes", len(boxes), unit="boxes", source=f"{path.stem}.txt")
-    c.text(0.04, 0.065, "Boxes shown are val ground truth from waste/labels/val, thin outlines; no mAP is implied.",
-           size=MINI, color=MUTED)
+    caption = (
+        "Boxes shown are val ground truth from waste/labels/val, thin outlines; "
+        "the mAP above is measured on this val split."
+        if data.finetune else
+        "Boxes shown are val ground truth from waste/labels/val, thin outlines; no mAP is implied."
+    )
+    c.text(0.04, 0.065, caption, size=MINI, color=MUTED)
     c.finish(footer_for(data, stem), status)
+
+
+# --------------------------------------------------------------------------- #
+# 12 -- pretrained COCO run vs fine-tuned run
+# --------------------------------------------------------------------------- #
+
+
+def build_12(data: PPTData) -> None:
+    """Compare the two preserved Colab runs. All values come from their CSVs."""
+    stem = "12_pretrained_vs_finetuned"
+    sources = [
+        "runs/pretrained_coco/demo_frame_timings.csv",
+        "runs/finetuned/demo_frame_timings.csv",
+        "runs/finetuned/finetune.csv",
+        "device.json",
+    ]
+    c = Canvas(stem, sources)
+
+    def archived(run: str, name: str) -> list[dict[str, str]]:
+        path = RESULTS / "runs" / run / name
+        if not path.is_file():
+            return []
+        with path.open(newline="", encoding="utf-8") as fh:
+            return list(csv.DictReader(fh))
+
+    def mean(rows: list[dict[str, str]], key: str) -> float | None:
+        values = [float(r[key]) for r in rows if r.get(key)]
+        return sum(values) / len(values) if values else None
+
+    def map50(run: str) -> float | None:
+        for row in archived(run, "finetune.csv"):
+            for part in row.get("extra", "").split(","):
+                if part.startswith("mAP50="):
+                    return float(part.split("=", 1)[1])
+        return None
+
+    pre, tuned = archived("pretrained_coco", "demo_frame_timings.csv"), \
+        archived("finetuned", "demo_frame_timings.csv")
+    if not pre or not tuned:
+        c.placeholder("one of the preserved runs is missing from results/runs/",
+                      source="results/runs/", y=0.5)
+        c.finish(footer_for(data, stem), "placeholder: archived run missing")
+        return
+
+    def total(rows: list[dict[str, str]], side: str) -> float | None:
+        sums = [
+            sum(float(r[f"{side}_{s}_ms"]) for s in ("decode", "preprocess", "infer", "post"))
+            for r in rows
+        ]
+        return sum(sums) / len(sums) if sums else None
+
+    p_map, t_map = map50("pretrained_coco"), map50("finetuned")
+    p_base, p_opt = total(pre, "baseline"), total(pre, "opt")
+    t_base, t_opt = total(tuned, "baseline"), total(tuned, "opt")
+    p_det, t_det = mean(pre, "baseline_detections"), mean(tuned, "baseline_detections")
+
+    rows: list[tuple[str, str, str]] = [
+        ("Detector weights", "COCO pretrained", "ZeroWaste fine-tuned"),
+        ("mAP50 on val", fmt(p_map, 3) if p_map else "NOT RUN",
+         fmt(t_map, 3) if t_map else "NOT RUN"),
+        ("Detections / frame", fmt(p_det, 3) if p_det is not None else "NOT RUN",
+         fmt(t_det, 3) if t_det is not None else "NOT RUN"),
+        ("Baseline time / frame", f"{fmt(p_base, 2)} ms" if p_base else "NOT RUN",
+         f"{fmt(t_base, 2)} ms" if t_base else "NOT RUN"),
+        ("Optimized time / frame", f"{fmt(p_opt, 2)} ms" if p_opt else "NOT RUN",
+         f"{fmt(t_opt, 2)} ms" if t_opt else "NOT RUN"),
+        ("Pipeline speedup", f"{p_base / p_opt:.2f}x" if p_base and p_opt else "NOT RUN",
+         f"{t_base / t_opt:.2f}x" if t_base and t_opt else "NOT RUN"),
+        ("Class labels", "COCO: tie, banana, person", "cardboard, metal, rigid, soft"),
+    ]
+
+    c.text(0.04, 0.95, "Same CUDA pipeline, two detectors", size=TITLE, weight="bold")
+    c.text(0.04, 0.885,
+           "Same T4, same 120 real frames, same four stages; only the detector weights differ.",
+           size=SUBTITLE, color=MUTED)
+    c.rect(0.34, 0.805, 0.29, 0.055, face=ORANGE, edge=ORANGE, rounded=True)
+    c.text(0.485, 0.837, "PRETRAINED COCO", size=PANEL, color="white",
+           weight="bold", ha="center")
+    c.rect(0.65, 0.805, 0.29, 0.055, face=TEAL, edge=TEAL, rounded=True)
+    c.text(0.795, 0.837, "FINE-TUNED ON WASTE", size=PANEL, color="white",
+           weight="bold", ha="center")
+
+    for i, (label, left, right) in enumerate(rows):
+        y = 0.755 - i * 0.083
+        if i % 2 == 0:
+            c.rect(0.035, y - 0.03, 0.925, 0.07, face="#F3F4F6", edge="#F3F4F6")
+        c.text(0.05, y, label, size=PANEL, color=INK)
+        c.text(0.485, y, left, size=PANEL, color=ORANGE_DARK, ha="center")
+        c.text(0.795, y, right, size=PANEL, color=TEAL, ha="center")
+        c.value(f"{label} | pretrained", left, source="runs/pretrained_coco/")
+        c.value(f"{label} | fine-tuned", right, source="runs/finetuned/")
+
+    more = f"{t_det / p_det:.1f}" if p_det and t_det else "several"
+    c.text(0.04, 0.14,
+           f"The fine-tuned model finds about {more}x more objects per frame, so absolute "
+           "times are not a speed comparison; read speedup within each run.",
+           size=MINI, color=MUTED)
+    c.finish(footer_for(data, stem), "data-backed")
 
 
 # --------------------------------------------------------------------------- #
@@ -1386,6 +1508,7 @@ def main() -> int:
     build_09(data)
     build_10(data)
     build_11(data)
+    build_12(data)
     write_index(data, chosen, relaxed)
     maybe_deck()
 

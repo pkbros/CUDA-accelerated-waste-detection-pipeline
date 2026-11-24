@@ -25,10 +25,10 @@ from pathlib import Path
 from typing import Any, Sequence
 
 try:  # imported as a package: python -m phase_b.finetune
-    from .common import REPO_ROOT, append_row, results_dir
+    from .common import REPO_ROOT, append_row, results_dir, set_finetuned
 except ImportError:  # executed directly: python phase_b/finetune.py
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from common import REPO_ROOT, append_row, results_dir
+    from common import REPO_ROOT, append_row, results_dir, set_finetuned
 
 FALLBACK_MESSAGE = (
     "dataset not converted yet; run python phase_b/data_prep.py ... ; "
@@ -228,6 +228,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     precision = _metric(box, "mp", "precision")
     recall = _metric(box, "mr", "recall")
     n_train = _n_train(results, data_yaml)
+    # This process just trained successfully, so its own CSV row must not be
+    # labelled as the pretrained fallback.
+    set_finetuned(True)
     append_row(
         bench="finetune",
         variant=args.model,

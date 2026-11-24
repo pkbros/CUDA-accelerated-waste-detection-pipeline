@@ -220,6 +220,9 @@ def main() -> int:
                 )
         ok = weights.exists()
         set_finetuned(ok)
+        # Child stages are separate processes; the environment variable makes
+        # every CSV row they write carry the same finetuned= label.
+        os.environ["FINETUNED"] = "true" if ok else "false"
         print("finetuned:", ok)
 
     step("fine-tune YOLOv8n (30 epochs)", finetune)

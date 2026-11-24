@@ -1,7 +1,7 @@
 panel,label,value,unit,source,note
-,float4 loads vs scalar loads scalar,2.287577,ms,vector_add.csv,scalar 2.288 ms vs float4 2.401 ms
-,float4 loads vs scalar loads float4,2.401380,ms,vector_add.csv,scalar 2.288 ms vs float4 2.401 ms
-,FP16 inference vs FP32 inference FP32,9.646711,ms,infer.csv,batch 1: FP32 9.65 ms vs FP16 10.20 ms
-,FP16 inference vs FP32 inference FP16,10.198392,ms,infer.csv,batch 1: FP32 9.65 ms vs FP16 10.20 ms
-,Pipelined vs serial at 4 feeds serial,91.118000,FPS/feed,batching.csv,4 feeds: serial 91.1 vs pipelined 37.5 FPS/feed
-,Pipelined vs serial at 4 feeds pipelined,37.523100,FPS/feed,batching.csv,4 feeds: serial 91.1 vs pipelined 37.5 FPS/feed
+,float4 loads vs scalar loads scalar,2.291340,ms,vector_add.csv,scalar 2.291 ms vs float4 2.370 ms
+,float4 loads vs scalar loads float4,2.370470,ms,vector_add.csv,scalar 2.291 ms vs float4 2.370 ms
+,FP16 inference vs FP32 inference FP32,10.932488,ms,infer.csv,batch 1: FP32 10.93 ms vs FP16 13.71 ms
+,FP16 inference vs FP32 inference FP16,13.711082,ms,infer.csv,batch 1: FP32 10.93 ms vs FP16 13.71 ms
+,Pipelined vs serial at 4 feeds serial,70.122700,FPS/feed,batching.csv,4 feeds: serial 70.1 vs pipelined 28.1 FPS/feed
+,Pipelined vs serial at 4 feeds pipelined,28.101000,FPS/feed,batching.csv,4 feeds: serial 70.1 vs pipelined 28.1 FPS/feed

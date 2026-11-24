@@ -16,16 +16,17 @@ are labelled `NOT RUN`. The GPU in every footer comes from `results/device.json`
 | [`08_memory_bound_and_streams.png`](08_memory_bound_and_streams.png) | Shows Nsight Compute DRAM versus SM utilisation and measured single-to-multi-stream transfer times. | `profiling_ncu.csv`, `streams.csv`, `device.json` |
 | [`09_multi_feed.png`](09_multi_feed.png) | Compares serial and pipelined FPS per feed at one, two and four feeds. | `batching.csv`, `device.json` |
 | [`10_what_did_not_work.png`](10_what_did_not_work.png) | Collects the three measured regressions: float4 loads, FP16 inference and multi-feed pipelining. | `vector_add.csv`, `infer.csv`, `batching.csv`, `device.json` |
-| [`11_detection_quality.png`](11_detection_quality.png) | Shows six fixed-seed validation frames with thin outlined ground-truth boxes and the fine-tune status. | `dataset.csv`, `waste.yaml`, `finetune.csv (absent)`, `device.json` |
+| [`11_detection_quality.png`](11_detection_quality.png) | Shows six fixed-seed validation frames with thin outlined ground-truth boxes and the fine-tune status. | `dataset.csv`, `waste.yaml`, `finetune.csv`, `device.json` |
+| [`12_pretrained_vs_finetuned.png`](12_pretrained_vs_finetuned.png) | Compares the preserved pretrained-COCO run against the fine-tuned run on the same hardware and frames. | `runs/pretrained_coco/demo_frame_timings.csv`, `runs/finetuned/demo_frame_timings.csv`, `runs/finetuned/finetune.csv`, `device.json` |
 
 ## Generation notes
 
-- Side-by-side frames: CSV row 11 (video frame 11, id 11), CSV row 57 (video frame 57, id 57), CSV row 100 (video frame 100, id 100). CSV rows are mapped to video frames **by row position**, not by the CSV `frame` id.
+- Side-by-side frames: CSV row 11 (video frame 11, id 11), CSV row 74 (video frame 74, id 74), CSV row 106 (video frame 106, id 106). CSV rows are mapped to video frames **by row position**, not by the CSV `frame` id.
 - Frame rule: '>=3 baseline detections and brightness>40' was met.
 - Inference ladder: batch 4 and batch 8 are absent from `results/infer.csv` and are shown as NOT RUN.
 - Detection quality: six val images chosen with `random.Random(0).sample(...)` (seed 0) from val frames bright enough to see; boxes are val ground truth from `data/waste/labels/val`.
-- Fine-tune mAP: NOT RUN: `finetune.csv` has no measured mAP; the images say so.
-- Pipeline agreement: frames agree 63.3% (76/120 frames), computed from pipeline_agreement.csv.
+- Fine-tune mAP: read from finetune.csv (mAP50=0.4173).
+- Pipeline agreement: frames agree 50.0% (60/120 frames), computed from pipeline_agreement.csv.
 
 ## Status summary
 
@@ -43,4 +44,5 @@ are labelled `NOT RUN`. The GPU in every footer comes from `results/device.json`
 | `08_memory_bound_and_streams.png` | data-backed |
 | `09_multi_feed.png` | data-backed |
 | `10_what_did_not_work.png` | data-backed |
-| `11_detection_quality.png` | partial: 6 val frames real, mAP NOT RUN |
+| `11_detection_quality.png` | data-backed |
+| `12_pretrained_vs_finetuned.png` | data-backed |

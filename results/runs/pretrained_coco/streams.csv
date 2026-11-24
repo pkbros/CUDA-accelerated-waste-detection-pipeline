@@ -1,0 +1,5 @@
+bench,variant,size,size_unit,time_ms_mean,time_ms_std,throughput,throughput_unit,extra,device,arch
+streams,sync_pageable,67108864,bytes,31.210410,0.776557,4.3004,GB/s,"ok=1,speedup=1.00x",Tesla T4,sm_75
+streams,sync_pinned,67108864,bytes,11.162245,0.012717,12.0243,GB/s,"ok=1,speedup=2.80x",Tesla T4,sm_75
+streams,streams2_pinned,67108864,bytes,7.467165,0.065033,17.9744,GB/s,"ok=1,speedup=4.18x",Tesla T4,sm_75
+streams,streams3_pinned,67108864,bytes,7.364366,0.016710,18.2253,GB/s,"ok=1,speedup=4.24x",Tesla T4,sm_75

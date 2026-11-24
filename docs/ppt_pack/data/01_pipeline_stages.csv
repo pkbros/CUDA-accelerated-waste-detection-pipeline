@@ -1,12 +1,12 @@
 panel,label,value,unit,source,note
 ,frames,120,frames,demo_frame_timings.csv,
-,mean baseline total,16.146017,ms,demo_frame_timings.csv,
-,mean optimized total,10.679240,ms,demo_frame_timings.csv,
-Frame decode,Frame decode baseline,1.535935,ms,demo_frame_timings.csv,mean across all frames
-Frame decode,Frame decode optimized,1.535935,ms,demo_frame_timings.csv,mean across all frames
-Preprocess,Preprocess baseline,3.784705,ms,demo_frame_timings.csv,mean across all frames
-Preprocess,Preprocess optimized,0.399522,ms,demo_frame_timings.csv,mean across all frames
-Inference,Inference baseline,10.825378,ms,demo_frame_timings.csv,mean across all frames
-Inference,Inference optimized,8.743783,ms,demo_frame_timings.csv,mean across all frames
+,mean baseline total,21.671809,ms,demo_frame_timings.csv,
+,mean optimized total,14.868720,ms,demo_frame_timings.csv,
+Frame decode,Frame decode baseline,1.977973,ms,demo_frame_timings.csv,mean across all frames
+Frame decode,Frame decode optimized,1.977973,ms,demo_frame_timings.csv,mean across all frames
+Preprocess,Preprocess baseline,4.902548,ms,demo_frame_timings.csv,mean across all frames
+Preprocess,Preprocess optimized,0.456298,ms,demo_frame_timings.csv,mean across all frames
+Inference,Inference baseline,14.791288,ms,demo_frame_timings.csv,mean across all frames
+Inference,Inference optimized,12.434448,ms,demo_frame_timings.csv,mean across all frames
 Postprocess / NMS,Postprocess / NMS baseline,0.000000,ms,demo_frame_timings.csv,mean across all frames
 Postprocess / NMS,Postprocess / NMS optimized,0.000000,ms,demo_frame_timings.csv,mean across all frames

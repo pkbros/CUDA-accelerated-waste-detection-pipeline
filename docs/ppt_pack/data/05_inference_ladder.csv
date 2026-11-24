@@ -1,12 +1,12 @@
 panel,label,value,unit,source,note
 ,batches present,"1,4,8",,infer.csv,
 ,batch 1 only,0,,infer.csv,
-,pt_fp32 batch 1,9.646711,ms,infer.csv,std=3.090519 ms
-,pt_fp32 batch 4,18.660516,ms,infer.csv,std=5.992396 ms
-,pt_fp32 batch 8,39.667224,ms,infer.csv,std=19.623372 ms
-,pt_fp16 batch 1,10.198392,ms,infer.csv,std=4.678007 ms
-,pt_fp16 batch 4,10.181607,ms,infer.csv,std=1.991750 ms
-,pt_fp16 batch 8,16.877931,ms,infer.csv,std=2.287624 ms
-,ort_cuda_fp32 batch 1,5.609167,ms,infer.csv,std=0.517977 ms
+,pt_fp32 batch 1,10.932488,ms,infer.csv,std=3.103080 ms
+,pt_fp32 batch 4,19.503871,ms,infer.csv,std=2.601038 ms
+,pt_fp32 batch 8,42.405871,ms,infer.csv,std=18.929767 ms
+,pt_fp16 batch 1,13.711082,ms,infer.csv,std=4.411539 ms
+,pt_fp16 batch 4,10.285128,ms,infer.csv,std=1.935351 ms
+,pt_fp16 batch 8,16.658041,ms,infer.csv,std=1.502116 ms
+,ort_cuda_fp32 batch 1,5.258981,ms,infer.csv,std=0.921562 ms
 ,NOT RUN ort_cuda_fp32 batch 4,,,infer.csv,no ort_cuda_fp32 batch-4 row in infer.csv
 ,NOT RUN ort_cuda_fp32 batch 8,,,infer.csv,no ort_cuda_fp32 batch-8 row in infer.csv

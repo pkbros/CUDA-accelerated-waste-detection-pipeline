@@ -1,7 +1,7 @@
 panel,label,value,unit,source,note
 ,source resolution,1920x1080,,preprocess.csv,
-,opencv_cpu,7.939985,ms,preprocess.csv,std=0.667638 ms; wall:cv2-CPU+pageable-H2D
-,torch_gpu_ops,0.682531,ms,preprocess.csv,std=0.019059 ms; events:plain-torch-GPU-ops
-,kernel_only,0.051967,ms,preprocess.csv,std=0.006559 ms; events:GPU-kernel-only
-,h2d_plus_kernel,0.562003,ms,preprocess.csv,std=0.005236 ms; events:pinned-H2D+kernel
-,end_to_end,1.416238,ms,preprocess.csv,std=0.112951 ms; wall:host-frame-to-ready-GPU-tensor
+,opencv_cpu,7.200548,ms,preprocess.csv,std=1.010022 ms; wall:cv2-CPU+pageable-H2D
+,torch_gpu_ops,0.683902,ms,preprocess.csv,std=0.008365 ms; events:plain-torch-GPU-ops
+,kernel_only,0.047353,ms,preprocess.csv,std=0.002168 ms; events:GPU-kernel-only
+,h2d_plus_kernel,0.558328,ms,preprocess.csv,std=0.007315 ms; events:pinned-H2D+kernel
+,end_to_end,1.424503,ms,preprocess.csv,std=0.066682 ms; wall:host-frame-to-ready-GPU-tensor

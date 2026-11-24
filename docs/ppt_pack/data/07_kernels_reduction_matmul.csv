@@ -1,11 +1,11 @@
 panel,label,value,unit,source,note
 ,reduction size,16777216,elements,reduction.csv,
 ,matmul N,1024,,matmul.csv,
-,tiled percent of cuBLAS,15.200179,%,matmul.csv,computed from the two measured GFLOPS values
-,reduction naive_global,21.675827,ms,reduction.csv,std=0.011668 ms
-,reduction shared_mem,0.289686,ms,reduction.csv,std=0.002827 ms
-,reduction warp_shuffle,0.292901,ms,reduction.csv,std=0.001770 ms
-,reduction cub_reference,0.258055,ms,reduction.csv,std=0.002128 ms
-,matmul naive,658.128800,GFLOPS,matmul.csv,time_ms_mean=3.263014 ms
-,matmul tiled,879.045800,GFLOPS,matmul.csv,time_ms_mean=2.442971 ms
-,matmul cublas,5783.128100,GFLOPS,matmul.csv,time_ms_mean=0.371336 ms
+,tiled percent of cuBLAS,13.698338,%,matmul.csv,computed from the two measured GFLOPS values
+,reduction naive_global,21.675494,ms,reduction.csv,std=0.010108 ms
+,reduction shared_mem,0.288570,ms,reduction.csv,std=0.002198 ms
+,reduction warp_shuffle,0.292310,ms,reduction.csv,std=0.002900 ms
+,reduction cub_reference,0.260063,ms,reduction.csv,std=0.003876 ms
+,matmul naive,705.565800,GFLOPS,matmul.csv,time_ms_mean=3.043634 ms
+,matmul tiled,824.229700,GFLOPS,matmul.csv,time_ms_mean=2.605443 ms
+,matmul cublas,6017.005300,GFLOPS,matmul.csv,time_ms_mean=0.356902 ms

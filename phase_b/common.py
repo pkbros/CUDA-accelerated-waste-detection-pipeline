@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import statistics
 import time
 from contextlib import contextmanager
@@ -175,7 +176,10 @@ def arch() -> str:
 # row records which weights were used, so a pretrained result can never be
 # presented as a fine-tuned one. C++ kernel benchmarks do not use a model and
 # therefore do not carry this field.
-_FINETUNED = False
+# Benchmarks run as separate processes, so the runner cannot set this in their
+# memory. It exports FINETUNED=true after a successful fine-tune and every
+# child process picks it up here, keeping CSV labels honest.
+_FINETUNED = os.environ.get("FINETUNED", "false").lower() == "true"
 
 
 def set_finetuned(value: bool) -> None:

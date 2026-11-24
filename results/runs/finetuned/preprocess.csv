@@ -1,0 +1,11 @@
+bench,variant,size,size_unit,time_ms_mean,time_ms_std,throughput,throughput_unit,extra,device,arch
+preprocess,kernel_only,409600,px,0.047353,0.002168,8649.8760,MP/s,"max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=events:GPU-kernel-only,src=1920x1080,finetuned=false",Tesla T4,sm_75
+preprocess,h2d_plus_kernel,409600,px,0.558328,0.007315,733.6189,MP/s,"max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=events:pinned-H2D+kernel,src=1920x1080,finetuned=false",Tesla T4,sm_75
+preprocess,end_to_end,409600,px,1.424503,0.066682,287.5388,MP/s,"max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=wall:host-frame-to-ready-GPU-tensor,src=1920x1080,finetuned=false",Tesla T4,sm_75
+preprocess,opencv_cpu,409600,px,7.200548,1.010022,56.8846,MP/s,"max_abs_err=4.768372e-07,tol=atol=0.01,ok=true,timing=wall:cv2-CPU+pageable-H2D,src=1920x1080,finetuned=false",Tesla T4,sm_75
+preprocess,torch_gpu_ops,409600,px,0.683902,0.008365,598.9161,MP/s,"max_abs_err=7.152557e-07,tol=atol=0.002,ok=true,timing=events:plain-torch-GPU-ops,src=1920x1080,finetuned=false",Tesla T4,sm_75
+preprocess,kernel_only,409600,px,0.041307,0.004983,9916.1006,MP/s,"max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=events:GPU-kernel-only,src=640x480,finetuned=false",Tesla T4,sm_75
+preprocess,h2d_plus_kernel,409600,px,0.117283,0.006454,3492.4204,MP/s,"max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=events:pinned-H2D+kernel,src=640x480,finetuned=false",Tesla T4,sm_75
+preprocess,end_to_end,409600,px,0.417255,0.231544,981.6549,MP/s,"max_abs_err=4.768372e-07,tol=atol=0.0001/rtol=0.0001,ok=true,timing=wall:host-frame-to-ready-GPU-tensor,src=640x480,finetuned=false",Tesla T4,sm_75
+preprocess,opencv_cpu,409600,px,6.469726,0.639041,63.3103,MP/s,"max_abs_err=4.768372e-07,tol=atol=0.01,ok=true,timing=wall:cv2-CPU+pageable-H2D,src=640x480,finetuned=false",Tesla T4,sm_75
+preprocess,torch_gpu_ops,409600,px,0.443831,0.078288,922.8730,MP/s,"max_abs_err=7.152557e-07,tol=atol=0.002,ok=true,timing=events:plain-torch-GPU-ops,src=640x480,finetuned=false",Tesla T4,sm_75

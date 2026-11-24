@@ -646,7 +646,19 @@ def _find_metric(rows: list[dict[str, str]], kind: str) -> tuple[float, str] | N
     normalised to lowercase alphanumeric so YOLO-style names such as
     ``metrics/mAP50-95(B)`` are recognised.
     """
+    # finetune.py stores metrics as key=value text inside `extra`, not as
+    # dedicated columns. Expand those pairs into virtual one-column rows so
+    # both long-form CSVs and append_row()'s schema are understood.
+    expanded: list[dict[str, str]] = []
     for row in rows:
+        expanded.append(row)
+        for raw_value in row.values():
+            for key, number in re.findall(
+                r"([A-Za-z0-9_/\-]+)=([-+]?\d+(?:\.\d+)?)", str(raw_value)
+            ):
+                expanded.append({"metric": key, "value": number})
+
+    for row in expanded:
         named = None
         value_keys: Iterable[str] = row.keys()
         name_raw = str(row.get("metric") or row.get("name") or row.get("key") or "").strip()
