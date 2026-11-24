@@ -18,9 +18,12 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 PHASE_B = REPO / "phase_b"
-EXPORT_URL = (
-    "https://app.roboflow.com/ds/s57TgZYXen?key=KojAAqjrtd"  # MCP-generated 2026-11-24
-)
+# SECURITY: export URLs contain a `key=` token. Never hardcode one in this
+# public repo. Set ROBOFLOW_EXPORT_URL in the Colab environment (or a Colab
+# secret) before running; generate a fresh URL with the Roboflow MCP tool
+# versions_export(project=zerowaste-data/zerowaste-contamination, version=3,
+# format=yolov8). The URL is never printed to logs.
+EXPORT_URL = os.environ.get("ROBOFLOW_EXPORT_URL", "")
 
 
 def record_failure(stage: str, detail: str) -> None:
@@ -155,8 +158,15 @@ def main() -> int:
     def dataset():
         zip_path = REPO / "data/raw/zerowaste_yolov8.zip"
         if not zip_path.exists():
+            if not EXPORT_URL:
+                raise RuntimeError(
+                    "ROBOFLOW_EXPORT_URL is not set. Generate a fresh export URL "
+                    "with the Roboflow MCP versions_export tool and set the "
+                    "environment variable before running. The URL is a secret; "
+                    "it must never be written into this repo."
+                )
             zip_path.parent.mkdir(parents=True, exist_ok=True)
-            print(f"downloading {EXPORT_URL}", flush=True)
+            print("downloading ZeroWaste export from the configured URL", flush=True)
             urllib.request.urlretrieve(EXPORT_URL, zip_path)
             print(f"downloaded {zip_path.stat().st_size / 1e6:.1f} MB")
         sh(f"python {shlex_quote(PHASE_B / 'prepare_zerowaste.py')}")
