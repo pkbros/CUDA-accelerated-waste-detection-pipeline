@@ -500,8 +500,11 @@ def run_pipelined(backend, source: FrameSource, prep: Preprocessor, frames: int,
 # Reporting helpers -- every value printed is derived from measured stats.
 # ---------------------------------------------------------------------------
 def _extra_base(source: FrameSource, backend_name: str, prep_label: str) -> str:
+    # Label a real video source explicitly so a CSV row can never be mistaken
+    # for the earlier synthetic run.
+    source_label = "real_video" if source.kind == "video" else source.kind
     bits = [
-        f"source={source.kind}",
+        f"source={source_label}",
         f"backend={backend_name}",
         f"preprocess={prep_label}",
         "end_to_end_wall_clock=true",

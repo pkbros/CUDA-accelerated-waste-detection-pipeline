@@ -144,12 +144,7 @@ def main() -> int:
         os.environ["CUDACXX"] = shutil_which("nvcc")
         sh("nvcc --version | tail -n 2")
         sh("pip -q install ultralytics onnx onnxruntime-gpu 2>&1 | tail -n 5")
-        # The demo renderer pipes raw frames to ffmpeg. Most Colab images have
-        # it, but not all; install it here so the final stage cannot die early.
-        if shutil_which("ffmpeg") is None:
-            sh("sudo apt-get -qq update", check=False)
-            sh("sudo apt-get -qq install -y ffmpeg", check=False)
-        print("ffmpeg:", shutil_which("ffmpeg") or "MISSING")
+        # No video rendering in this workflow; ffmpeg is not required.
 
     step("environment", environment)
 
@@ -157,29 +152,62 @@ def main() -> int:
     step("preprocess benchmark",
          lambda: sh(f"python {shlex_quote(PHASE_B / 'preprocess_ext.py')}"))
 
-    # ---- model: pretrained COCO, no fine-tuning ---------------------------
-    step("ONNX export",
-         lambda: sh(f"python {shlex_quote(PHASE_B / 'export_model.py')}"))
+    # ---- dataset first: the fine-tune needs data/waste.yaml ----------------
+    step("real dataset + clip", dataset_stage)
+
+    # ---- fine-tune (review task 1b) ----------------------------------------
+    def finetune():
+        from common import set_finetuned
+
+        weights = REPO / "weights/waste_yolov8n.pt"
+        if weights.exists():
+            print("fine-tuned weights already present; skipping training")
+        else:
+            rc = sh(
+                f"python {shlex_quote(PHASE_B / 'finetune.py')} "
+                f"--data {shlex_quote(REPO / 'data/waste.yaml')} "
+                f"--model yolov8n.pt --epochs 30 --imgsz 640 --batch 16 "
+                f"--project {shlex_quote(REPO / 'reports')} --name finetune",
+                check=False,
+            ).returncode
+            if rc != 0:
+                record_failure("fine-tune", f"finetune.py exit {rc}; falling back to COCO")
+        ok = weights.exists()
+        set_finetuned(ok)
+        print("finetuned:", ok)
+
+    step("fine-tune YOLOv8n (30 epochs)", finetune)
+
+    # ---- export the SAME weights used by every later stage ----------------
+    def export():
+        tuned = REPO / "weights/waste_yolov8n.pt"
+        base = REPO / "models/yolov8n.pt"
+        weights = tuned if tuned.exists() else base
+        out = REPO / "models/waste_yolov8n.onnx" if tuned.exists() else REPO / "models/yolov8n.onnx"
+        sh(
+            f"python {shlex_quote(PHASE_B / 'export_model.py')} "
+            f"--weights {shlex_quote(weights)} --out {shlex_quote(out)}"
+        )
+
+    step("ONNX export", export)
 
     def ladder():
+        frames = REPO / "data/waste/images/val"
         for batch in (1, 4, 8):
             sh(
                 f"python {shlex_quote(PHASE_B / 'infer_bench.py')} "
                 f"--imgsz 640 --batch {batch} --iters 100 --warmup 20 "
+                f"--frames {shlex_quote(frames)} "
                 f"--csv {shlex_quote(REPO / 'results' / 'infer.csv')}",
                 check=False,
             )
 
-    step("inference ladder batches 1/4/8", ladder)
+    step("inference ladder batches 1/4/8 on real frames", ladder)
 
-    # ---- Tasks 2 & 4: real dataset + real belt video ----------------------
-    step("real dataset + belt video", dataset_stage)
-
-    # ---- Task 9 input: per-frame timings on real frames --------------------
+    # ---- per-frame timings on real frames ----------------------------------
     def timings():
-        model = REPO / "models/yolov8n.pt"
-        if not model.exists():
-            raise RuntimeError("yolov8n.pt missing; ONNX export stage failed")
+        tuned = REPO / "weights/waste_yolov8n.pt"
+        model = tuned if tuned.exists() else REPO / "models/yolov8n.pt"
         sh(
             f"python {shlex_quote(PHASE_B / 'demo_timings.py')} "
             f"--frames {shlex_quote(REPO / 'data/waste/images/val')} "
@@ -188,24 +216,33 @@ def main() -> int:
         )
 
     step("per-frame demo timings", timings)
+    step("pipeline agreement check",
+         lambda: sh(f"python {shlex_quote(PHASE_B / 'pipeline_agreement.py')}"))
 
-    # ---- Task 8 figures + Task 9 video ------------------------------------
-    step("figures", lambda: sh(f"python {shlex_quote(REPO / 'tools/make_figures.py')}"))
-
-    def render():
-        csv = REPO / "results/demo_frame_timings.csv"
-        video = REPO / "demo/belt_input.mp4"
-        if not csv.exists() or not video.exists():
-            raise RuntimeError("timings CSV or belt video missing; no video rendered")
+    def multifeed():
         sh(
-            f"python {shlex_quote(REPO / 'demo/render_demo.py')} "
-            f"--frames-csv {shlex_quote(csv)} --video {shlex_quote(video)} "
-            f"--out {shlex_quote(REPO / 'demo/demo.mp4')} "
-            f"--short-out {shlex_quote(REPO / 'demo/demo_short.mp4')} "
-            f"--overview {shlex_quote(REPO / 'docs/overview.png')}",
+            f"python {shlex_quote(PHASE_B / 'pipeline.py')} "
+            f"--backend pt_fp32 --source {shlex_quote(REPO / 'demo/belt_input.mp4')} "
+            f"--imgsz 640 --frames 300 --warmup 20 "
+            f"--csv {shlex_quote(REPO / 'results' / 'pipeline.csv')} "
+            f"--batch-csv {shlex_quote(REPO / 'results' / 'batching.csv')}",
+            check=False,
         )
 
-    step("demo video", render)
+    step("multi-feed pipeline on the real clip", multifeed)
+
+    def ncu():
+        sh(
+            f"ncu --set basic --target-processes all --csv "
+            f"--log-file {shlex_quote(REPO / 'results' / 'profiling_ncu.csv')} "
+            f"{shlex_quote(REPO / 'build/vector_add')} --n 1000000 --iters 5 "
+            f"--csv {shlex_quote(REPO / 'reports' / 'profiling_tmp.csv')}",
+            check=False,
+        )
+
+    step("ncu counters", ncu)
+    step("figures", lambda: sh(f"python {shlex_quote(REPO / 'tools/make_figures.py')}"))
+    step("PPT image pack", lambda: sh(f"python {shlex_quote(REPO / 'tools/make_ppt_pack.py')}"))
     step("summary", lambda: sh(f"python {shlex_quote(REPO / 'tools/summary.py')}"))
 
     # ---- return the numbers, since downloads may not work in VS Code ------

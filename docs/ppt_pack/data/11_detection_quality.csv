@@ -1,0 +1,19 @@
+panel,label,value,unit,source,note
+,train,1415,,dataset.csv,
+,val,300,,dataset.csv,
+,boxes,8895,,dataset.csv,
+,sampling seed,0,,waste.yaml,fixed seed for the six val images
+,classes,"0=cardboard, 1=metal, 2=rigid_plastic, 3=soft_plastic",,waste.yaml,
+,NOT RUN,,,finetune.csv,no fine-tune metrics
+,val frame 1,03_frame_051300_PNG.rf.edbbadc6766913412dad57c75419ed0f.jpg,,waste.yaml,fixed seed 0
+,val frame 1 boxes,1,boxes,03_frame_051300_PNG.rf.edbbadc6766913412dad57c75419ed0f.txt,
+,val frame 2,12_frame_023900_PNG.rf.507ab2348b4690ca09ab9bbd3206327b.jpg,,waste.yaml,fixed seed 0
+,val frame 2 boxes,6,boxes,12_frame_023900_PNG.rf.507ab2348b4690ca09ab9bbd3206327b.txt,
+,val frame 3,03_frame_052200_PNG.rf.9e075e57f248089490bf25b89d6195f0.jpg,,waste.yaml,fixed seed 0
+,val frame 3 boxes,8,boxes,03_frame_052200_PNG.rf.9e075e57f248089490bf25b89d6195f0.txt,
+,val frame 4,01_frame_000325_PNG.rf.b377f73894dc33952c496b08818fb628.jpg,,waste.yaml,fixed seed 0
+,val frame 4 boxes,7,boxes,01_frame_000325_PNG.rf.b377f73894dc33952c496b08818fb628.txt,
+,val frame 5,02_frame_000281_PNG.rf.fe8f04608a6d0e5cf886d2843adde22e.jpg,,waste.yaml,fixed seed 0
+,val frame 5 boxes,8,boxes,02_frame_000281_PNG.rf.fe8f04608a6d0e5cf886d2843adde22e.txt,
+,val frame 6,04_frame_000181_PNG.rf.9b60183bd6b283c588bf85ae7f3d1b2a.jpg,,waste.yaml,fixed seed 0
+,val frame 6 boxes,8,boxes,04_frame_000181_PNG.rf.9b60183bd6b283c588bf85ae7f3d1b2a.txt,

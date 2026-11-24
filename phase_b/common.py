@@ -171,6 +171,18 @@ def arch() -> str:
 # ---------------------------------------------------------------------------
 # CSV writing
 # ---------------------------------------------------------------------------
+# Set by the runner after the fine-tune stage. Every Python-written benchmark
+# row records which weights were used, so a pretrained result can never be
+# presented as a fine-tuned one. C++ kernel benchmarks do not use a model and
+# therefore do not carry this field.
+_FINETUNED = False
+
+
+def set_finetuned(value: bool) -> None:
+    global _FINETUNED
+    _FINETUNED = bool(value)
+
+
 def append_row(
     bench: str,
     variant: str,
@@ -200,7 +212,8 @@ def append_row(
                 f"{time_ms_std:.6f}",
                 f"{throughput:.4f}",
                 throughput_unit,
-                extra,
+                f"{extra},finetuned={str(_FINETUNED).lower()}" if extra else
+                f"finetuned={str(_FINETUNED).lower()}",
                 device_name(),
                 arch(),
             ]

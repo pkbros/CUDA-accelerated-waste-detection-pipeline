@@ -1,0 +1,11 @@
+panel,label,value,unit,source,note
+,reduction size,16777216,elements,reduction.csv,
+,matmul N,1024,,matmul.csv,
+,tiled percent of cuBLAS,13.818432,%,matmul.csv,computed from the two measured GFLOPS values
+,reduction naive_global,21.685227,ms,reduction.csv,std=0.011169 ms
+,reduction shared_mem,0.288632,ms,reduction.csv,std=0.002648 ms
+,reduction warp_shuffle,0.291619,ms,reduction.csv,std=0.002367 ms
+,reduction cub_reference,0.255976,ms,reduction.csv,std=0.001881 ms
+,matmul naive,631.841800,GFLOPS,matmul.csv,time_ms_mean=3.398768 ms
+,matmul tiled,840.236200,GFLOPS,matmul.csv,time_ms_mean=2.555810 ms
+,matmul cublas,6080.546500,GFLOPS,matmul.csv,time_ms_mean=0.353173 ms

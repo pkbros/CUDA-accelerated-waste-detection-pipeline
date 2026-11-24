@@ -1,0 +1,12 @@
+panel,label,value,unit,source,note
+,batches present,1,,infer.csv,
+,batch 1 only,1,,infer.csv,
+,pt_fp32 batch 1,9.394884,ms,infer.csv,std=3.861228 ms
+,NOT RUN pt_fp32 batch 4,,,infer.csv,no pt_fp32 batch-4 row in infer.csv
+,NOT RUN pt_fp32 batch 8,,,infer.csv,no pt_fp32 batch-8 row in infer.csv
+,pt_fp16 batch 1,32.076483,ms,infer.csv,std=17.901439 ms
+,NOT RUN pt_fp16 batch 4,,,infer.csv,no pt_fp16 batch-4 row in infer.csv
+,NOT RUN pt_fp16 batch 8,,,infer.csv,no pt_fp16 batch-8 row in infer.csv
+,ort_cuda_fp32 batch 1,10.259621,ms,infer.csv,std=5.497489 ms
+,NOT RUN ort_cuda_fp32 batch 4,,,infer.csv,no ort_cuda_fp32 batch-4 row in infer.csv
+,NOT RUN ort_cuda_fp32 batch 8,,,infer.csv,no ort_cuda_fp32 batch-8 row in infer.csv

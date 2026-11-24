@@ -1,0 +1,12 @@
+panel,label,value,unit,source,note
+,baseline total mean,16.989476,ms,demo_frame_timings.csv,
+,optimized total mean,11.140422,ms,demo_frame_timings.csv,
+,optimized percent of baseline,65.572491,%,demo_frame_timings.csv,computed from the two measured totals
+baseline,baseline decode,1.655575,ms,demo_frame_timings.csv,
+baseline,baseline preprocess,4.280191,ms,demo_frame_timings.csv,
+baseline,baseline inference,11.053710,ms,demo_frame_timings.csv,
+baseline,baseline postprocess,0.000000,ms,demo_frame_timings.csv,zero width: not drawn
+optimized,optimized decode,1.655575,ms,demo_frame_timings.csv,
+optimized,optimized preprocess,0.440884,ms,demo_frame_timings.csv,
+optimized,optimized inference,9.043963,ms,demo_frame_timings.csv,
+optimized,optimized postprocess,0.000000,ms,demo_frame_timings.csv,zero width: not drawn

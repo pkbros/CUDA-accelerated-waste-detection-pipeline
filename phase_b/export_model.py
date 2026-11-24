@@ -21,16 +21,28 @@ WEIGHTS = MODELS_DIR / "yolov8n.pt"
 ONNX = MODELS_DIR / "yolov8n.onnx"
 
 
-def main() -> None:
-    """Download (if needed), export, and report the two file sizes."""
+def main(argv: list[str] | None = None) -> None:
+    """Export weights to ONNX and report both file sizes from disk.
+
+    With no arguments this keeps the legacy pretrained path. Pass --weights
+    weights/waste_yolov8n.pt after a fine-tune so every later stage uses the
+    same model.
+    """
+    import argparse
+
     from ultralytics import YOLO
 
-    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--weights", default=str(WEIGHTS))
+    ap.add_argument("--out", default=str(ONNX))
+    args = ap.parse_args(argv)
+    weights, onnx = Path(args.weights), Path(args.out)
 
     # YOLO() downloads the weights to this exact path when it is missing, so
     # the download is pinned to models/ instead of whatever the CWD happens to
     # be. Keeping it next to the ONNX file makes the ladder's paths predictable.
-    model = YOLO(str(WEIGHTS))
+    weights.parent.mkdir(parents=True, exist_ok=True)
+    model = YOLO(str(weights))
 
     # simplify=False keeps the graph shape identical to what PyTorch produced;
     # an ONNX simplifier can fold nodes in ways that change Op sets and make
@@ -46,16 +58,17 @@ def main() -> None:
     # Ultralytics normally writes models/yolov8n.onnx next to the weights. If a
     # version writes somewhere else, honour the returned path but still keep a
     # canonical copy at ONNX so backends.py / infer_bench.py can find it.
-    if not ONNX.exists() and exported:
+    onnx.parent.mkdir(parents=True, exist_ok=True)
+    if not onnx.exists() and exported:
         src = Path(str(exported))
-        if src.exists() and src.resolve() != ONNX.resolve():
-            shutil.copyfile(src, ONNX)
-    if not ONNX.exists():
+        if src.exists() and src.resolve() != onnx.resolve():
+            shutil.copyfile(src, onnx)
+    if not onnx.exists():
         raise RuntimeError(
-            f"ONNX export did not produce {ONNX} (ultralytics returned {exported!r})."
+            f"ONNX export did not produce {onnx} (ultralytics returned {exported!r})."
         )
 
-    for path in (WEIGHTS, ONNX):
+    for path in (weights, onnx):
         size = path.stat().st_size
         print(f"{path}: {size:,} bytes ({size / 1e6:.2f} MB)")
 

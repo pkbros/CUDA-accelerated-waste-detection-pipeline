@@ -58,6 +58,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--warmup", type=int, default=20, help="untimed warmup iterations per rung")
     parser.add_argument("--csv", default="../results/infer.csv", help="CSV filename passed to common.append_stats")
     parser.add_argument("--only", default="", help="comma-separated subset of backends to run")
+    parser.add_argument(
+        "--frames", default=None,
+        help="directory of real frames to use as input instead of a zero tensor",
+    )
     return parser.parse_args(argv)
 
 
@@ -84,7 +88,11 @@ def model_path_for(name: str, models_dir: Path) -> str:
         "ort_cuda": "yolov8n.onnx",
         "trt_fp16": "yolov8n.engine",
     }[name]
-    return str(models_dir / filename)
+    # Prefer the fine-tuned model when it exists, so no rung silently times a
+    # different network than the one used in the per-frame pipeline.
+    tuned = Path(filename).with_name("waste_" + filename)
+    chosen = tuned if (models_dir / tuned).exists() else Path(filename)
+    return str(models_dir / chosen)
 
 
 def record_failure(name: str, reason: str) -> Path:
@@ -143,9 +151,34 @@ def main(argv: list[str] | None = None) -> None:
     # Same input for every rung: float32, NCHW RGB, already normalized to 0..1.
     # Zeros are a valid normalized input; using a fixed tensor keeps the
     # comparison deterministic (the FP16 rung casts it internally).
-    x = torch.zeros(
-        args.batch, 3, args.imgsz, args.imgsz, device="cuda", dtype=torch.float32
-    )
+    if args.frames:
+        import cv2
+        import numpy as np
+
+        frame_dir = Path(args.frames)
+        paths = sorted(
+            p for p in frame_dir.iterdir()
+            if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".bmp"}
+        )[: args.batch]
+        if not paths:
+            raise SystemExit(f"no frames found in {frame_dir}")
+        imgs = []
+        for p in paths:
+            f = cv2.imread(str(p), cv2.IMREAD_COLOR)
+            if f is None:
+                continue
+            f = cv2.resize(f, (args.imgsz, args.imgsz), interpolation=cv2.INTER_LINEAR)
+            rgb = cv2.cvtColor(f, cv2.COLOR_BGR2RGB)
+            imgs.append(rgb.transpose(2, 0, 1).astype(np.float32) / 255.0)
+        while len(imgs) < args.batch:
+            imgs.append(imgs[-1].copy())
+        x = torch.from_numpy(np.stack(imgs)).to("cuda")
+        input_note = "real_frames"
+    else:
+        x = torch.zeros(
+            args.batch, 3, args.imgsz, args.imgsz, device="cuda", dtype=torch.float32
+        )
+        input_note = "zero_tensor"
 
     results: dict[str, dict[str, float]] = {}
     for name in requested:
@@ -165,7 +198,8 @@ def main(argv: list[str] | None = None) -> None:
             extra = (
                 f"precision={PRECISION[name]}; {backend.decode_note}; "
                 f"{backend.sync_note}; output={backend.output_shape}; "
-                f"input=NCHW float32 {args.imgsz}px batch={args.batch}; "
+                f"input=NCHW float32 {args.imgsz}px batch={args.batch} "
+                f"source={input_note}; "
                 "fps_basis=per-forward"
             )
             append_stats(
