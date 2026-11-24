@@ -23,7 +23,7 @@ are labelled `NOT RUN`. The GPU in every footer comes from `results/device.json`
 - Side-by-side frames: CSV row 11 (video frame 11, id 11), CSV row 57 (video frame 57, id 57), CSV row 100 (video frame 100, id 100). CSV rows are mapped to video frames **by row position**, not by the CSV `frame` id.
 - Frame rule: '>=3 baseline detections and brightness>40' was met.
 - Inference ladder: batch 4 and batch 8 are absent from `results/infer.csv` and are shown as NOT RUN.
-- Detection quality: six val images chosen with `random.Random(0).sample(...)` (seed 0); boxes are val ground truth from `data/waste/labels/val`.
+- Detection quality: six val images chosen with `random.Random(0).sample(...)` (seed 0) from val frames bright enough to see; boxes are val ground truth from `data/waste/labels/val`.
 - Fine-tune mAP: NOT RUN: `finetune.csv` has no measured mAP; the images say so.
 - Pipeline agreement: frames agree 63.3% (76/120 frames), computed from pipeline_agreement.csv.
 

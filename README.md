@@ -3,12 +3,13 @@
 A CUDA performance study of a conveyor-belt waste detection pipeline: hand-written GPU kernels,
 a pretrained YOLOv8n on real conveyor frames, and profiling that shows what got faster and why.
 
-![Pipeline overview](docs/overview.png)
+![Where the time goes](docs/ppt_pack/03_latency_breakdown.png)
 
-**80 s screen demo:** [`demo/demo.mp4`](demo/demo.mp4) — split-screen of real ZeroWaste val
-frames with measured per-stage overlays, plus [`demo_short.mp4`](demo/demo_short.mp4) (15 s).
-Both were rendered **offline from the CSVs the T4 wrote**; every number on screen is traceable
-to `results/demo_frame_timings.csv`.
+**For the interview:** [slide-image pack](docs/ppt_pack/index.md) (11 PNGs, every number from a
+CSV) and [plain-English project explainer](docs/PROJECT_EXPLAINED.md). The older demo video is
+left on disk but is no longer the deliverable.
+
+![Pipeline overview](docs/overview.png)
 
 > **Status: prototype.** Every number below comes from a CSV written by a run on a Colab
 > **Tesla T4 (sm_75, CUDA 13.0)**. The first synthetic run is archived in

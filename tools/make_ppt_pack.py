@@ -349,6 +349,22 @@ def video_frame(path: Path, index: int) -> np.ndarray | None:
     return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
 
 
+def bright_val_images(images: list[Path], threshold: float = 40.0) -> list[Path]:
+    """Keep val frames whose grayscale mean clears the visibility threshold.
+
+    This is a selection filter only: no brightness number is printed on an
+    image or written to its data CSV.
+    """
+    out: list[Path] = []
+    for path in images:
+        bgr = cv2.imread(str(path))
+        if bgr is None:
+            continue
+        if float(np.mean(cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY))) > threshold:
+            out.append(path)
+    return out
+
+
 def choose_frames(
     frames: list[FrameTiming], brightness: list[float]
 ) -> tuple[list[FrameTiming], bool]:
@@ -619,7 +635,7 @@ def build_03(data: PPTData) -> None:
             c.rect(cursor, y, seg, 0.115, face=color, edge="white", lw=1.0)
             center = cursor + seg / 2.0
             if label == "baseline":
-                level = y + 0.19 + (0.04 if i % 2 == 0 else 0.08)
+                level = y + 0.16 + (0.03 if i % 2 == 0 else 0.065)
                 c.line(center, y + 0.115, center, level - 0.014, color=MUTED, lw=1.2)
             else:
                 level = y - 0.06 - (0.04 if i % 2 == 0 else 0.08)
@@ -1140,7 +1156,7 @@ def build_11(data: PPTData) -> None:
     c = Canvas(stem, ["dataset.csv", "waste.yaml", "finetune.csv", "device.json"])
     info = dataset_info(data)
     names = yolo_classes()
-    images = val_images()
+    images = bright_val_images(val_images())
     seed = 0
     chosen = random.Random(seed).sample(images, min(6, len(images))) if images else []
     train, val, total_boxes = info.get("train"), info.get("val"), info.get("boxes")
@@ -1201,8 +1217,10 @@ def build_11(data: PPTData) -> None:
             c.text(x0 + w / 2, y0 + h / 2, "image unreadable", size=MINI,
                    ha="center", color=ORANGE_DARK, ax=c.ax)
             continue
+        ih, iw = rgb.shape[:2]
         val_box_objects = [
-            Box(b[0], b[1], b[2], b[3], b[4], 0.0) for b in boxes
+            Box(b[0] * iw, b[1] * ih, b[2] * iw, b[3] * ih, b[4], 0.0)
+            for b in boxes
         ]
         draw_frame_panel(c, ax, rgb, val_box_objects, INK, names, show_score=False)
         # The label helper prints a score for per-frame detections; val labels
@@ -1247,8 +1265,9 @@ def write_index(data: PPTData, chosen: list[FrameTiming], relaxed: bool) -> None
         + ("was met." if chosen and not relaxed else
            "was relaxed to >=1 detection because no frame met >=3." if relaxed else "had no matching frames."),
         "- Inference ladder: batch 4 and batch 8 are absent from `results/infer.csv` and are shown as NOT RUN.",
-        "- Detection quality: six val images chosen with `random.Random(0).sample(...)` (seed 0); "
-        "boxes are val ground truth from `data/waste/labels/val`.",
+        "- Detection quality: six val images chosen with `random.Random(0).sample(...)` (seed 0) "
+        "from val frames bright enough to see; boxes are val ground truth from "
+        "`data/waste/labels/val`.",
     ])
     lines.append(
         f"- Fine-tune mAP: "
