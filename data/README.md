@@ -6,7 +6,9 @@ No images or labels are stored in git. This folder holds the subset produced by
 
 ## What is used
 
-**TACO (Trash Annotations in Context)** — CC BY 4.0, verified 2026-11-24 from
+**ZeroWaste v3** (Roboflow MCP export, CC BY 4.0 per the Roboflow API; prototype interview use, see `docs/data_sources.md`). The local subset and the 30 s demo video were built on 2026-11-24 from the v3 YOLOv8 export. Files are gitignored.
+
+**Fallback: TACO (Trash Annotations in Context)** — CC BY 4.0, verified 2026-11-24 from
 [Zenodo record 3587843](https://zenodo.org/records/3587843) and
 [tacodataset.org](http://tacodataset.org/). It is litter **in the wild**, not
 conveyor footage. That substitution is a stated limitation, not a result.

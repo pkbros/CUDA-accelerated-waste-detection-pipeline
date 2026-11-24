@@ -1,0 +1,2 @@
+bench,variant,size,size_unit,time_ms_mean,time_ms_std,throughput,throughput_unit,extra,device,arch
+dataset,zerowaste_v3_yolov8,1715,images,0,0,0,,"train=1415,val=300,boxes=8895,cardboard=5554,metal=193,rigid_plastic=835,soft_plastic=2313,source=roboflow_mcp,license=CC_BY_4.0,prototype_use_only",ZeroWaste Data,n/a

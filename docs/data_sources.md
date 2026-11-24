@@ -94,3 +94,43 @@ Disposable plastic / Foam / Glass / Other plastic cup) · `plastic_bag_wrapper`
 The full name→index table is `TACO_TO_WASTE` in `phase_b/data_prep.py`.
 `prepare` writes the real per-class counts into `results/dataset.csv` when it
 runs — none are claimed here because the subset has not been built yet.
+
+
+## Resolution 2026-11-24 (after MCP access)
+
+The licence conflict is **resolved in favour of CC BY 4.0** by the Roboflow API
+itself, queried through the Roboflow MCP `projects_get` and `versions_export`
+tools. Both responses contain `"license": "CC BY 4.0"`, and the exported
+`data.yaml` embeds `license: CC BY 4.0` with the dataset URL
+<https://universe.roboflow.com/zerowaste-data/zerowaste-contamination/dataset/3>.
+The earlier conflicting "CC BY-NC 4.0" string is in the page's About prose and
+refers to the original academic dataset; the hosted copy we actually downloaded
+is self-described as CC BY 4.0. Owner (Prateek) explicitly authorised proceeding
+for a **prototype interview demo**. This is not redistribution; if the repo is
+ever published with these images, re-check the licence with Roboflow.
+
+### What was actually downloaded and used
+
+- Dataset: `zerowaste-data/zerowaste-contamination`, **version 3**, exported by
+  the MCP in `yolov8` format (328.5 MB zip), on 2026-11-24.
+- Source metadata from the API: 9,563 images, splits `6590 train / 1144 valid /
+  1829 test`, 4 classes.
+- Export preprocessing: auto-orient, 640×640 stretch to square.
+- Local subset: **1,415 train / 300 val** images. Train scenes exclude every
+  scene present in val (scene ids 01/02/03/04/10/12 in val; 05/06/07/08/09/11
+  in train), so there are no near-duplicate frames across the split. Fewer than
+  the requested 1,500 train images because whole scenes were kept intact — the
+  real count is written to `results/dataset.csv` and `data/waste/split.json`.
+- Classes (from the export, not typed by hand): `cardboard`, `metal`,
+  `rigid_plastic`, `soft_plastic`. Box counts in the subset:
+  cardboard 5,554; soft_plastic 2,313; rigid_plastic 835; metal 193
+  (read from `results/dataset.csv`, produced by `phase_b/prepare_zerowaste.py`).
+- Demo video: `demo/belt_input.mp4`, **900 frames / 30.0 s / 30 fps**, built from
+  the **valid** split in original frame order (multiple crops per frame where
+  present). The model never trains on these frames.
+- Sample grid: `docs/plots/dataset_samples.png` (10 labelled val frames).
+- The zip and images are gitignored and are NOT committed. `data/README.md` has
+  the reproducible commands.
+
+TACO is no longer the selected dataset. Its verification notes above remain as
+the documented fallback.
