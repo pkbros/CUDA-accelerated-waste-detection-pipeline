@@ -22,4 +22,4 @@ Kept deliberately: the PRD asks for honesty over a clean story.
 - 2026-11-24 - Real Colab T4 run: batch 4 and batch 8 ladder rows were attempted but produced no CSV rows; infer.csv contains batch 1 only. No batch-scaling claim is made.
 - 2026-11-24 - Real Colab T4 run: pipeline.csv / batching.csv still contain the earlier synthetic rows (source=synthetic). The real-video per-frame numbers are in results/demo_frame_timings.csv instead; the old rows are kept, not silently replaced.
 - 2026-11-24 - TensorRT unavailable in the runtime (No module named 'tensorrt'); ONNX Runtime CUDA is the highest rung that actually ran.
-- 2026-11-24 - results bundle contains results/ only. demo/demo.mp4 and demo_short.mp4 were rendered on the VM but are not in the bundle; download them separately from the Colab Files sidebar.
+- 2026-11-24 - demo/demo.mp4 and demo_short.mp4 were NOT produced. The renderer exits with SystemExit when ffmpeg is missing; the runner caught only Exception, so it stopped silently and no failure was recorded at the time. Fixed in demo/run_colab_demo.py (catches SystemExit and installs ffmpeg). Re-run the render stage to produce the videos.

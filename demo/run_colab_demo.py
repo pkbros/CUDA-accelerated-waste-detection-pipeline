@@ -64,7 +64,10 @@ def step(name: str, fn) -> bool:
         fn()
         print(f"[ok] {name}", flush=True)
         return True
-    except Exception as exc:  # noqa: BLE001
+    except (Exception, SystemExit) as exc:  # noqa: BLE001
+        # render_demo.py exits via SystemExit (e.g. ffmpeg missing). SystemExit
+        # is not an Exception, so catching only Exception killed the runner
+        # silently and left no trace in failures.md.
         record_failure(name, repr(exc))
         print(f"[failed] {name}: {exc}", flush=True)
         return False
@@ -120,6 +123,12 @@ def main() -> int:
         os.environ["CUDACXX"] = shutil_which("nvcc")
         sh("nvcc --version | tail -n 2")
         sh("pip -q install ultralytics onnx onnxruntime-gpu 2>&1 | tail -n 5")
+        # The demo renderer pipes raw frames to ffmpeg. Most Colab images have
+        # it, but not all; install it here so the final stage cannot die early.
+        if shutil_which("ffmpeg") is None:
+            sh("sudo apt-get -qq update", check=False)
+            sh("sudo apt-get -qq install -y ffmpeg", check=False)
+        print("ffmpeg:", shutil_which("ffmpeg") or "MISSING")
 
     step("environment", environment)
 
